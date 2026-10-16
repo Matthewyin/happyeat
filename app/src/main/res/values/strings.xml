@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HappyEat</string>
+    <string name="tagline">Catch the yummy · Dodge the danger</string>
+    <string name="score_fmt">Score: %1$d</string>
+    <string name="lives_fmt">Lives: %1$d</string>
+    <string name="next_life_fmt">Next life in %1$d</string>
+    <string name="vehicle_fmt">Riding · %1$ds · hits %2$d/%3$d</string>
+    <string name="pause">Pause</string>
+    <string name="settings">Settings</string>
+    <string name="paused">Paused</string>
+    <string name="resume">Resume</string>
+    <string name="game_over">Game Over</string>
+    <string name="your_score_fmt">Your score: %1$d</string>
+    <string name="best_score_fmt">Best: %1$d</string>
+    <string name="restart">Restart</string>
+    <string name="leaderboard">Leaderboard</string>
+    <string name="language">Language</string>
+    <string name="follow_system">Follow system</string>
+    <string name="english">English</string>
+    <string name="chinese">中文</string>
+    <string name="welcome_title">Welcome to HappyEat</string>
+    <string name="welcome_prompt">Enter a username for the local leaderboard (2–20 characters)</string>
+    <string name="username">Username</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="name_too_short">Name must be 2–20 characters</string>
+    <string name="no_records">No records yet — play a round!</string>
+    <string name="best_marker_fmt">★ %1$d. %2$s — %3$d (%4$s)</string>
+    <string name="rank_entry_fmt">%1$d. %2$s — %3$d (%4$s)</string>
+    <string name="menu_start">Start Game</string>
+    <string name="menu_help">Help</string>
+    <string name="back_to_menu">Main Menu</string>
+    <string name="help_title">How to Play</string>
+    <string name="help_bean">Bean: +1 point — catch it (green ring = good)</string>
+    <string name="help_meat">Meat: +5 points</string>
+    <string name="help_pie">Pie: +10 points</string>
+    <string name="help_vehicle">Car / Tank: ride it, blocks damage for 10s or 3 hits (amber ring)</string>
+    <string name="help_hazard">Rock / Bomb / Knife: lose a life on contact — dodge! (red ring)</string>
+    <string name="help_beast">Tigers, lions &amp; wolves charge along the ground — tap quickly to jump over</string>
+    <string name="help_controls">Drag to move • Quick tap to jump</string>
+    <string name="tutorial_drag">⬅ Hold &amp; drag to move ➡</string>
+    <string name="tutorial_jump">⬆ Quick tap to jump</string>
+    <string name="tutorial_hint">Touch anywhere to start</string>
+    <string name="entry_language">Language / 语言</string>
+    <string name="entry_background">Background</string>
+    <string name="bg_auto">Auto (changes over time)</string>
+    <string name="bg_day">Day</string>
+    <string name="bg_sunset">Sunset</string>
+    <string name="bg_night">Night</string>
+    <string name="exit_game">Exit Game</string>
+    <string name="exit_confirm">Quit HappyEat?</string>
+    <string name="exit_message">Your progress and best score are saved on this device.</string>
+</resources>

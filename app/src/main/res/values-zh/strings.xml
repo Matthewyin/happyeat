@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HappyEat</string>
+    <string name="tagline">接住美味 · 躲开危险</string>
+    <string name="score_fmt">分数：%1$d</string>
+    <string name="lives_fmt">生命：%1$d</string>
+    <string name="next_life_fmt">还差 %1$d 分送命</string>
+    <string name="vehicle_fmt">骑乘中 · 剩 %1$d 秒 · 撞击 %2$d/%3$d</string>
+    <string name="pause">暂停</string>
+    <string name="settings">设置</string>
+    <string name="paused">已暂停</string>
+    <string name="resume">继续</string>
+    <string name="game_over">游戏结束</string>
+    <string name="your_score_fmt">本局得分：%1$d</string>
+    <string name="best_score_fmt">最高分：%1$d</string>
+    <string name="restart">重新开始</string>
+    <string name="leaderboard">排行榜</string>
+    <string name="language">语言 / Language</string>
+    <string name="follow_system">跟随系统</string>
+    <string name="english">English</string>
+    <string name="chinese">中文</string>
+    <string name="welcome_title">欢迎来到 HappyEat</string>
+    <string name="welcome_prompt">输入一个用户名用于本机排行榜（2–20 个字符）</string>
+    <string name="username">用户名</string>
+    <string name="ok">确定</string>
+    <string name="cancel">取消</string>
+    <string name="name_too_short">用户名需 2–20 个字符</string>
+    <string name="no_records">还没有记录，先玩一局吧！</string>
+    <string name="best_marker_fmt">★ %1$d. %2$s — %3$d（%4$s）</string>
+    <string name="rank_entry_fmt">%1$d. %2$s — %3$d（%4$s）</string>
+    <string name="menu_start">开始游戏</string>
+    <string name="menu_help">帮助</string>
+    <string name="back_to_menu">回主菜单</string>
+    <string name="help_title">玩法说明</string>
+    <string name="help_bean">豆子：+1 分——接住它（绿圈=能吃）</string>
+    <string name="help_meat">肉：+5 分</string>
+    <string name="help_pie">馅饼：+10 分</string>
+    <string name="help_vehicle">车/坦克：骑乘挡伤害，10 秒或撞 3 次报废（黄圈）</string>
+    <string name="help_hazard">石头/炸弹/刀：碰到掉一条命——快躲！（红圈）</string>
+    <string name="help_beast">虎/狮/狼贴地冲过来——快速点按跳跃躲过</string>
+    <string name="help_controls">按住拖动移动 • 快速点按跳跃</string>
+    <string name="tutorial_drag">⬅ 按住拖动移动 ➡</string>
+    <string name="tutorial_jump">⬆ 快速点按跳跃</string>
+    <string name="tutorial_hint">轻触任意处开始</string>
+    <string name="entry_language">语言 / Language</string>
+    <string name="entry_background">背景</string>
+    <string name="bg_auto">自动（随时间变化）</string>
+    <string name="bg_day">白天</string>
+    <string name="bg_sunset">黄昏</string>
+    <string name="bg_night">夜晚</string>
+    <string name="exit_game">退出游戏</string>
+    <string name="exit_confirm">确定要退出 HappyEat 吗？</string>
+    <string name="exit_message">进度和最高分都保存在本机。</string>
+</resources>

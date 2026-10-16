@@ -1,0 +1,15 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+out/verify/
+out/sprites_raw/
+out/art/
+out/cmp/
+.v2c/
+.video_agent/

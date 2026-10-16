@@ -1,0 +1,96 @@
+{
+  "jobs": 2,
+  "tasks": [
+    {
+      "id": "player",
+      "provider": "codex-cli",
+      "ar": "1:1",
+      "image": "out/sprites_raw/player.png",
+      "prompt": "Flat cute cartoon mobile-game sprite of a cheerful young person seen from the front, full body standing, arms stretched out to the sides ready to catch falling food, wearing a red cap, orange t-shirt and blue pants, big friendly smile, bold black outlines, bright saturated colors, single character centered, entire body visible with a small margin, no text, no watermark, no ground shadow, the entire background is solid uniform pure magenta color #FF00FF with nothing else in frame."
+    },
+    {
+      "id": "bean",
+      "provider": "codex-cli",
+      "ar": "1:1",
+      "image": "out/sprites_raw/bean.png",
+      "prompt": "Flat cute cartoon mobile-game sprite of a single shiny brown coffee bean with a cute happy smiling face, bold black outlines, bright saturated colors, single object centered, entire object visible with a small margin, no text, no watermark, no ground shadow, the entire background is solid uniform pure magenta color #FF00FF with nothing else in frame."
+    },
+    {
+      "id": "meat",
+      "provider": "codex-cli",
+      "ar": "1:1",
+      "image": "out/sprites_raw/meat.png",
+      "prompt": "Flat cute cartoon mobile-game sprite of a juicy grilled beef steak with dark grill marks and a small white bone sticking out, bold black outlines, bright saturated colors, single object centered, entire object visible with a small margin, no text, no watermark, no ground shadow, the entire background is solid uniform pure magenta color #FF00FF with nothing else in frame."
+    },
+    {
+      "id": "pie",
+      "provider": "codex-cli",
+      "ar": "1:1",
+      "image": "out/sprites_raw/pie.png",
+      "prompt": "Flat cute cartoon mobile-game sprite of a whole baked fruit pie with golden crimped crust and a little steam wisp on top, bold black outlines, bright saturated colors, single object centered, entire object visible with a small margin, no text, no watermark, no ground shadow, the entire background is solid uniform pure magenta color #FF00FF with nothing else in frame."
+    },
+    {
+      "id": "rock",
+      "provider": "codex-cli",
+      "ar": "1:1",
+      "image": "out/sprites_raw/rock.png",
+      "prompt": "Flat cute cartoon mobile-game sprite of a large gray jagged boulder rock, slightly menacing, bold black outlines, bright saturated colors, single object centered, entire object visible with a small margin, no text, no watermark, no ground shadow, the entire background is solid uniform pure magenta color #FF00FF with nothing else in frame."
+    },
+    {
+      "id": "bomb",
+      "provider": "codex-cli",
+      "ar": "1:1",
+      "image": "out/sprites_raw/bomb.png",
+      "prompt": "Flat cute cartoon mobile-game sprite of a round glossy black cartoon bomb with a short fuse and a bright orange sparking flame on the fuse, bold black outlines, bright saturated colors, single object centered, entire object visible with a small margin, no text, no watermark, no ground shadow, the entire background is solid uniform pure magenta color #FF00FF with nothing else in frame."
+    },
+    {
+      "id": "knife",
+      "provider": "codex-cli",
+      "ar": "1:1",
+      "image": "out/sprites_raw/knife.png",
+      "prompt": "Flat cute cartoon mobile-game sprite of a sharp steel kitchen chef knife with a black handle, diagonal orientation, gleaming blade, bold black outlines, bright saturated colors, single object centered, entire object visible with a small margin, no text, no watermark, no ground shadow, the entire background is solid uniform pure magenta color #FF00FF with nothing else in frame."
+    },
+    {
+      "id": "car",
+      "provider": "codex-cli",
+      "ar": "1:1",
+      "image": "out/sprites_raw/car.png",
+      "prompt": "Flat cute cartoon mobile-game sprite of a small blue hatchback car in side view facing right, cute chunky proportions, big round wheels, bold black outlines, bright saturated colors, single object centered, entire object visible with a small margin, no text, no watermark, no ground shadow, the entire background is solid uniform pure magenta color #FF00FF with nothing else in frame."
+    },
+    {
+      "id": "tank",
+      "provider": "codex-cli",
+      "ar": "1:1",
+      "image": "out/sprites_raw/tank.png",
+      "prompt": "Flat cute cartoon mobile-game sprite of a small green military tank in side view facing right with a turret cannon and tread wheels, cute chunky proportions, bold black outlines, bright saturated colors, single object centered, entire object visible with a small margin, no text, no watermark, no ground shadow, the entire background is solid uniform pure magenta color #FF00FF with nothing else in frame."
+    },
+    {
+      "id": "tiger",
+      "provider": "codex-cli",
+      "ar": "1:1",
+      "image": "out/sprites_raw/tiger.png",
+      "prompt": "Flat cute cartoon mobile-game sprite of an orange striped tiger running in side view facing right, dynamic running pose with legs stretched, slightly menacing but cute, bold black outlines, bright saturated colors, single animal centered, entire body visible with a small margin, no text, no watermark, no ground shadow, the entire background is solid uniform pure magenta color #FF00FF with nothing else in frame."
+    },
+    {
+      "id": "lion",
+      "provider": "codex-cli",
+      "ar": "1:1",
+      "image": "out/sprites_raw/lion.png",
+      "prompt": "Flat cute cartoon mobile-game sprite of a golden lion with a big fluffy mane running in side view facing right, dynamic running pose with legs stretched, slightly menacing but cute, bold black outlines, bright saturated colors, single animal centered, entire body visible with a small margin, no text, no watermark, no ground shadow, the entire background is solid uniform pure magenta color #FF00FF with nothing else in frame."
+    },
+    {
+      "id": "wolf",
+      "provider": "codex-cli",
+      "ar": "1:1",
+      "image": "out/sprites_raw/wolf.png",
+      "prompt": "Flat cute cartoon mobile-game sprite of a gray wolf running in side view facing right, dynamic running pose with legs stretched, slightly menacing but cute, bold black outlines, bright saturated colors, single animal centered, entire body visible with a small margin, no text, no watermark, no ground shadow, the entire background is solid uniform pure magenta color #FF00FF with nothing else in frame."
+    },
+    {
+      "id": "background",
+      "provider": "codex-cli",
+      "ar": "9:16",
+      "image": "out/sprites_raw/background.png",
+      "prompt": "Cartoon mobile game landscape background in portrait orientation, bright blue sky with a few fluffy white clouds filling the upper two thirds, a soft sun in the top corner, cheerful rolling green grass field along the bottom third with a few small flowers, flat cute cartoon style, bold colors, simple shapes, matching the look of a casual catching game, no characters, no animals, no items, no text, no watermark, no UI elements."
+    }
+  ]
+}
