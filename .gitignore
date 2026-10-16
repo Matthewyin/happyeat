@@ -13,3 +13,5 @@ out/art/
 out/cmp/
 .v2c/
 .video_agent/
+*.jks
+keystore.properties
