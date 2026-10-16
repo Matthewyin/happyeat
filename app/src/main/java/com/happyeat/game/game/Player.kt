@@ -1,6 +1,5 @@
 package com.happyeat.game.game
 
-import android.graphics.RectF
 import com.happyeat.game.config.GameConfig
 import kotlin.math.PI
 import kotlin.math.sin
@@ -16,10 +15,10 @@ class Player {
 
     private var jumpStartMs = Long.MIN_VALUE
 
-    fun hitbox(groundY: Float, nowMs: Long, viewH: Float): RectF {
+    fun hitbox(groundY: Float, nowMs: Long, viewH: Float): Aabb {
         val half = sizePx * GameConfig.HITBOX_SCALE / 2f
         val cy = groundY - sizePx / 2f - heightOffset(nowMs, viewH)
-        return RectF(x - half, cy - half, x + half, cy + half)
+        return Aabb(x - half, cy - half, x + half, cy + half)
     }
 
     fun isInvincible(nowMs: Long): Boolean = nowMs < invincibleUntilMs
@@ -38,6 +37,10 @@ class Player {
     }
 
     fun mount(kind: ItemKind, nowMs: Long) {
+        // 还骑在上一辆上：只换车型并刷新 10 秒，撞击次数接着算，不叠满也不清零。
+        // 已经下车（时间走完，或撞满 3 次）后再捡：这是一辆新车，撞击从 0 重新计。
+        // 清零必须写在 riding = true 之前，否则分不清是续骑还是新车。
+        if (!riding) vehicleHits = 0
         riding = true
         vehicleKind = kind
         vehicleExpiresAtMs = nowMs + GameConfig.VEHICLE_DURATION_MS

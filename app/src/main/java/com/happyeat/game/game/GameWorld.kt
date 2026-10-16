@@ -1,6 +1,5 @@
 package com.happyeat.game.game
 
-import android.graphics.RectF
 import com.happyeat.game.config.GameConfig
 import kotlin.random.Random
 
@@ -37,6 +36,17 @@ class GameWorld(private val listener: Listener) {
     private var beastTimerMs = 0L
     private val rand = Random.Default
 
+    /**
+     * 正式对局保持开启。
+     * 单测关掉之后，这一帧只结算已经放进场的实体，随机生成不会把断言打乱。
+     */
+    internal var spawnEnabled = true
+
+    /** 上一帧已经推给 HUD 的骑乘状态。秒数、撞击或是否在骑有变化才再推，时间到下车也靠这次比较。 */
+    private var hudRiding = false
+    private var hudSeconds = 0
+    private var hudHits = 0
+
     val difficulty: Float
         get() = 1f + (GameConfig.DIFFICULTY_MAX_MULTIPLIER - 1f) *
             (gameTimeMs.toFloat() / GameConfig.DIFFICULTY_RAMP_MS).coerceAtMost(1f)
@@ -68,7 +78,7 @@ class GameWorld(private val listener: Listener) {
         player.resetState()
         if (viewW > 0f) player.x = viewW / 2f
         listener.onHudChanged(score, lives, nextExtraLifeAt)
-        listener.onVehicleChanged(false, 0, 0)
+        publishVehicleHud(force = true)
     }
 
     fun dragPlayerBy(dx: Float) {
@@ -87,18 +97,20 @@ class GameWorld(private val listener: Listener) {
         val dt = dtMs / 1000f
         val diff = difficulty
 
-        fallTimerMs += dtMs
-        val fallInterval = (GameConfig.FALL_SPAWN_INTERVAL_MS / diff).toLong().coerceAtLeast(50L)
-        while (fallTimerMs >= fallInterval) {
-            fallTimerMs -= fallInterval
-            spawnItem()
-        }
+        if (spawnEnabled) {
+            fallTimerMs += dtMs
+            val fallInterval = (GameConfig.FALL_SPAWN_INTERVAL_MS / diff).toLong().coerceAtLeast(50L)
+            while (fallTimerMs >= fallInterval) {
+                fallTimerMs -= fallInterval
+                spawnItem()
+            }
 
-        beastTimerMs += dtMs
-        val beastInterval = (GameConfig.BEAST_SPAWN_INTERVAL_MS / diff).toLong()
-        if (beastTimerMs >= beastInterval && beasts.size < GameConfig.MAX_BEASTS_ON_SCREEN) {
-            beastTimerMs = 0L
-            spawnBeast()
+            beastTimerMs += dtMs
+            val beastInterval = (GameConfig.BEAST_SPAWN_INTERVAL_MS / diff).toLong()
+            if (beastTimerMs >= beastInterval && beasts.size < GameConfig.MAX_BEASTS_ON_SCREEN) {
+                beastTimerMs = 0L
+                spawnBeast()
+            }
         }
 
         player.tickVehicle(gameTimeMs)
@@ -111,11 +123,20 @@ class GameWorld(private val listener: Listener) {
             item.y += fallSpeed * item.speedFactor * dt
             if (item.y - itemSize > viewH) {
                 items.removeAt(i)
-            } else if (RectF.intersects(item.hitbox(), player.hitbox(groundY, gameTimeMs, viewH))) {
+            } else if (item.hitbox().intersects(player.hitbox(groundY, gameTimeMs, viewH))) {
                 handleItemContact(item)
                 items.removeAt(i)
+                // 这一下已经把本局结束了。同帧里还排在后面的食物不再结算，
+                // 否则结束面板和数据库记下的分会比左上角少。
+                if (gameOver) break
             }
             i--
+        }
+
+        // 人已经死了就不要再和猛兽结算，避免同一帧里死亡之后又改分数。
+        if (gameOver) {
+            publishVehicleHud()
+            return
         }
 
         var j = beasts.size - 1
@@ -126,11 +147,10 @@ class GameWorld(private val listener: Listener) {
                 (beast.direction == -1 && beast.x + beast.sizePx < 0f)
             if (offScreen) {
                 beasts.removeAt(j)
-            } else if (RectF.intersects(beast.hitbox(groundY, viewH), player.hitbox(groundY, gameTimeMs, viewH))) {
+            } else if (beast.hitbox(groundY, viewH).intersects(player.hitbox(groundY, gameTimeMs, viewH))) {
                 if (player.riding) {
                     addScore(GameConfig.SCORE_CRUSH_BEAST)
                     player.registerCrush()
-                    notifyVehicle()
                     SoundManager.play(SoundEvent.CRUSH)
                     beasts.removeAt(j)
                 } else if (!player.isInvincible(gameTimeMs)) {
@@ -140,6 +160,7 @@ class GameWorld(private val listener: Listener) {
             }
             j--
         }
+        publishVehicleHud()
     }
 
     private fun handleItemContact(item: FallingItem) {
@@ -158,14 +179,12 @@ class GameWorld(private val listener: Listener) {
             }
             ItemKind.CAR, ItemKind.TANK -> {
                 player.mount(item.kind, gameTimeMs)
-                notifyVehicle()
                 SoundManager.play(SoundEvent.MOUNT)
             }
             else -> {
                 if (player.riding) {
                     addScore(GameConfig.SCORE_CRUSH_HAZARD)
                     player.registerCrush()
-                    notifyVehicle()
                     SoundManager.play(SoundEvent.CRUSH)
                 } else if (!player.isInvincible(gameTimeMs)) {
                     loseLife()
@@ -176,6 +195,8 @@ class GameWorld(private val listener: Listener) {
     }
 
     private fun addScore(points: Int) {
+        // 结束之后分数冻结，和已经发给面板、数据库的那一帧保持一致。
+        if (gameOver) return
         score += points
         while (score >= nextExtraLifeAt && lives < GameConfig.MAX_LIVES) {
             lives++
@@ -185,6 +206,7 @@ class GameWorld(private val listener: Listener) {
     }
 
     private fun loseLife() {
+        if (gameOver) return
         lives--
         if (lives <= 0) {
             lives = 0
@@ -198,12 +220,20 @@ class GameWorld(private val listener: Listener) {
         }
     }
 
-    private fun notifyVehicle() {
-        listener.onVehicleChanged(
-            player.riding,
-            player.vehicleHits,
-            if (player.riding) secondsLeftOfVehicle() else 0,
-        )
+    /**
+     * 骑乘行只在剩余秒数、撞击次数或上下车发生变化时刷新。
+     * 每帧都推的话主线程会被刷屏；完全不推的话，倒计时会停在刚骑上的 10 秒，
+     * 时间走完后人已经下车，左上角那一行还在。
+     */
+    private fun publishVehicleHud(force: Boolean = false) {
+        val riding = player.riding
+        val seconds = if (riding) secondsLeftOfVehicle() else 0
+        val hits = if (riding) player.vehicleHits else 0
+        if (!force && riding == hudRiding && seconds == hudSeconds && hits == hudHits) return
+        hudRiding = riding
+        hudSeconds = seconds
+        hudHits = hits
+        listener.onVehicleChanged(riding, hits, seconds)
     }
 
     private fun secondsLeftOfVehicle(): Int =

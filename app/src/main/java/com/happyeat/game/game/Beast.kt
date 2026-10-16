@@ -1,6 +1,5 @@
 package com.happyeat.game.game
 
-import android.graphics.RectF
 import com.happyeat.game.config.GameConfig
 import kotlin.math.PI
 import kotlin.math.sin
@@ -36,9 +35,9 @@ class Beast(
     fun heightOffset(viewH: Float): Float =
         if (jumping) (sin(jumpT * PI) * GameConfig.BEAST_JUMP_HEIGHT * viewH).toFloat() else 0f
 
-    fun hitbox(groundY: Float, viewH: Float): RectF {
+    fun hitbox(groundY: Float, viewH: Float): Aabb {
         val half = sizePx * GameConfig.HITBOX_SCALE / 2f
         val cy = groundY - sizePx / 2f - heightOffset(viewH)
-        return RectF(x - half, cy - half, x + half, cy + half)
+        return Aabb(x - half, cy - half, x + half, cy + half)
     }
 }

@@ -24,6 +24,7 @@ import com.happyeat.game.game.GameView
 import com.happyeat.game.game.SoundEvent
 import com.happyeat.game.game.SoundManager
 import com.happyeat.game.ui.GameOverPanel
+import com.happyeat.game.ui.OverlayRouter
 import com.happyeat.game.ui.HelpPage
 import com.happyeat.game.ui.LeaderboardPage
 import com.happyeat.game.ui.MenuPage
@@ -57,8 +58,8 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
     private lateinit var helpPage: HelpPage
     private lateinit var leaderboardPage: LeaderboardPage
     private var pausedByUi = false
-    private var settingsFromPause = false
     private var helpFromPause = false
+    private val router = OverlayRouter()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -93,10 +94,10 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
         pausePanel.onSettings = { openSettingsPage(fromPause = true) }
         pausePanel.onHelp = { openHelpPage(fromPause = true) }
         gameOverPanel.onRestart = { restartGame() }
-        gameOverPanel.onLeaderboard = { openLeaderboardPage() }
+        gameOverPanel.onLeaderboard = { openLeaderboardPage(fromGameOver = true) }
         gameOverPanel.onMenu = { backToMenu() }
         menuPage.onStart = { startFromMenu() }
-        menuPage.onLeaderboard = { openLeaderboardPage() }
+        menuPage.onLeaderboard = { openLeaderboardPage(fromGameOver = false) }
         menuPage.onSettings = { openSettingsPage() }
         menuPage.onHelp = { openHelpPage() }
         menuPage.onExit = {
@@ -105,11 +106,12 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
         }
         settingsPage.onBack = {
             settingsPage.hidePage()
-            if (settingsFromPause) {
-                pausePanel.show()
-                applyAudioState()
-            } else {
-                showMenuPage()
+            when (router.backFromSettings()) {
+                OverlayRouter.Place.PAUSE -> {
+                    pausePanel.show()
+                    applyAudioState()
+                }
+                else -> showMenuPage()
             }
         }
         settingsPage.onLanguageSelected = { tag ->
@@ -130,7 +132,17 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
                 showMenuPage()
             }
         }
-        leaderboardPage.onBack = { showMenuPage() }
+        leaderboardPage.onBack = {
+            leaderboardPage.hidePage()
+            when (router.backFromLeaderboard()) {
+                // 从结束面板进来的，返回时把那张面板再显示出来，分数文字还在。
+                OverlayRouter.Place.GAME_OVER -> {
+                    gameOverPanel.show()
+                    applyAudioState()
+                }
+                else -> showMenuPage()
+            }
+        }
         leaderboardPage.onShowLoad = { loadLeaderboard() }
         tutorialPanel.onDismiss = {
             Prefs.setTutorialShown(this)
@@ -230,7 +242,7 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
         bar.addView(View(this), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
         val circle = LinearLayout.LayoutParams(dp(52), dp(52)).apply { marginStart = dp(10) }
         bar.addView(hudButton("⏸") { pauseGame() }, LinearLayout.LayoutParams(circle).apply { marginEnd = dp(10) })
-        bar.addView(hudButton("⚙") { openSettingsPage() }, circle)
+        bar.addView(hudButton("⚙") { openSettingsFromGear() }, circle)
         return bar
     }
 
@@ -279,15 +291,35 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
     }
 
     private fun showMenuPage() {
+        // 结束面板如果还留着，下一次开始会被它整屏挡住。
+        gameOverPanel.hide()
         hideAllPages()
         menuPage.showPage()
         pausedByUi = false
+        // 菜单表示没有进行中的一局。循环若还在跑，这里停掉并清空，避免菜单盖住一局还在结算的游戏。
+        if (!gameView.inMenu) gameView.enterMenu()
         applyAudioState()
     }
 
+    /** 对局中点齿轮：先暂停循环，再盖设置。返回时回到暂停面板。 */
+    private fun openSettingsFromGear() {
+        if (gameOverPanel.isVisibleNow() || anyPageVisible()) return
+        router.settingsWhilePaused()
+        pauseGame()
+        presentSettings()
+    }
+
     private fun openSettingsPage(fromPause: Boolean = false) {
-        settingsFromPause = fromPause
-        if (fromPause) pausedByUi = true
+        if (fromPause) {
+            router.settingsWhilePaused()
+            pausedByUi = true
+        } else {
+            router.settingsFromMenu()
+        }
+        presentSettings()
+    }
+
+    private fun presentSettings() {
         pausePanel.hide()
         hideAllPages()
         settingsPage.showPage()
@@ -303,7 +335,10 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
         applyAudioState()
     }
 
-    private fun openLeaderboardPage() {
+    private fun openLeaderboardPage(fromGameOver: Boolean) {
+        router.openLeaderboard(fromGameOver)
+        // 结束面板全屏可点。不先藏掉的话，看完排行榜再开一局，旧面板还挡在新局上面。
+        if (fromGameOver) gameOverPanel.hide()
         hideAllPages()
         leaderboardPage.showPage()
         applyAudioState()
@@ -319,6 +354,7 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
 
     private fun startFromMenu() {
         SoundManager.play(SoundEvent.CLICK)
+        gameOverPanel.hide()
         menuPage.hidePage()
         if (!Prefs.tutorialShown(this)) {
             tutorialPanel.show()
