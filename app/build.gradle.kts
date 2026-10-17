@@ -19,6 +19,7 @@ android {
         applicationId = "com.happyeat.game"
         minSdk = 24
         targetSdk = 36
+        testInstrumentationRunner = "com.happyeat.game.MainActivityInstrumentation"
         versionCode = 1
         versionName = "1.0"
     }
@@ -57,6 +58,7 @@ ksp {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    implementation("androidx.lifecycle:lifecycle-viewmodel:2.6.2")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
     implementation("androidx.room:room-runtime:2.6.1")

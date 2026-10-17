@@ -14,9 +14,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import com.happyeat.game.config.GameConfig
 
-enum class BgMode { AUTO, DAY, SUNSET, NIGHT }
-
-class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback, Runnable {
+class GameView internal constructor(context: Context, private val session: GameSession) : SurfaceView(context), SurfaceHolder.Callback, Runnable {
 
     interface HudListener {
         fun onHudChanged(score: Int, lives: Int, pointsToNextLife: Int)
@@ -27,30 +25,58 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     var hudListener: HudListener? = null
 
     @Volatile var bgMode = BgMode.AUTO
-    @Volatile var inMenu = true
+        set(value) {
+            synchronized(world) {
+                field = value
+                prevBg = null
+                bgFadeStartMs = -1L
+            }
+            prepareBackground(fade = false)
+            drawPausedFrame()
+        }
+    var inMenu: Boolean
+        get() = session.inMenu
+        private set(value) { session.inMenu = value }
 
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val world = GameWorld(object : GameWorld.Listener {
+    private val world = session.world
+    private var eventVersion = 0L
+    @Volatile private var released = false
+
+    private fun postHud(action: (HudListener) -> Unit) {
+        val version = eventVersion
+        mainHandler.post {
+            val valid = synchronized(world) { !released && version == eventVersion && world.listener === worldListener }
+            if (valid) hudListener?.let(action)
+        }
+    }
+
+    private val worldListener: GameWorld.Listener = object : GameWorld.Listener {
         override fun onHudChanged(score: Int, lives: Int, pointsToNextLife: Int) {
-            mainHandler.post { hudListener?.onHudChanged(score, lives, pointsToNextLife) }
+            postHud { it.onHudChanged(score, lives, pointsToNextLife) }
         }
 
         override fun onVehicleChanged(riding: Boolean, hitsUsed: Int, secondsLeft: Int) {
-            mainHandler.post { hudListener?.onVehicleChanged(riding, hitsUsed, secondsLeft) }
+            postHud { it.onVehicleChanged(riding, hitsUsed, secondsLeft) }
         }
 
         override fun onGameOver(score: Int) {
-            mainHandler.post { hudListener?.onGameOver(score) }
+            postHud { it.onGameOver(score) }
         }
-    })
+    }
 
-    private var thread: Thread? = null
+    @Volatile private var thread: Thread? = null
     @Volatile private var running = false
-    @Volatile private var pausedByUi = false
+    @Volatile private var pausedByUi = true
 
-    private var backgroundDay: Bitmap? = null
-    private var backgroundSunset: Bitmap? = null
-    private var backgroundNight: Bitmap? = null
+    private data class BackgroundKey(val name: String, val width: Int, val height: Int)
+    private var backgroundKey: BackgroundKey? = null
+    private var backgroundGeneration = 0L
+    private var prevBackgroundName: String? = null
+    private var backgroundLoads = 0
+    private var backgroundDecoder: (String, Int, Int) -> Bitmap? = ::decodeBackground
+    private var spriteWidth = 0
+    private var spriteHeight = 0
     private var shownBg: Bitmap? = null
     private var prevBg: Bitmap? = null
     private var bgFadeStartMs = -1L
@@ -68,36 +94,71 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     private var downAtMs = 0L
 
     init {
+        synchronized(world) { world.listener = worldListener }
         holder.addCallback(this)
     }
 
     fun startGame() {
-        synchronized(world) { world.reset() }
-        inMenu = false
+        pauseGame()
+        synchronized(world) {
+            if (released) return
+            eventVersion++
+            inMenu = false
+            world.reset()
+        }
         resumeGame()
     }
 
     fun enterMenu() {
-        inMenu = true
-        synchronized(world) { world.reset() }
         pauseGame()
+        synchronized(world) {
+            if (released) return
+            eventVersion++
+            inMenu = true
+            world.reset()
+        }
     }
 
     fun pauseGame() {
-        pausedByUi = true
+        synchronized(world) { pausedByUi = true }
         SoundManager.stopBgm()
         stopLoop()
     }
 
     fun resumeGame() {
-        pausedByUi = false
+        synchronized(world) {
+            if (released || inMenu || world.gameOver) return
+            pausedByUi = false
+        }
         if (holder.surface.isValid) {
             startLoop()
             if (!inMenu) SoundManager.startBgm(BgmTrack.GAME)
         }
     }
 
+    fun refreshHud() {
+        synchronized(world) { world.refreshHud() }
+    }
+
+    fun release() {
+        synchronized(world) {
+            released = true
+            pausedByUi = true
+            eventVersion++
+            shownBg = null
+            prevBg = null
+            if (world.listener === worldListener) world.listener = null
+        }
+        stopLoop()
+        mainHandler.removeCallbacksAndMessages(null)
+        hudListener = null
+    }
+
     override fun surfaceCreated(holder: SurfaceHolder) {
+        synchronized(world) {
+            backgroundGeneration++
+            if (shownBg == null) backgroundKey = null
+        }
         val frame = holder.surfaceFrame
         applySize(frame.width().toFloat(), frame.height().toFloat())
         if (!pausedByUi) startLoop()
@@ -105,6 +166,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         applySize(width.toFloat(), height.toFloat())
+        drawPausedFrame()
+    }
+
+    private fun drawPausedFrame() {
+        if (pausedByUi && !released && holder.surface.isValid) {
+            val canvas = holder.lockCanvas() ?: return
+            try {
+                synchronized(world) { if (!released) drawFrame(canvas) }
+            } finally {
+                holder.unlockCanvasAndPost(canvas)
+            }
+        }
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -114,7 +187,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     override fun run() {
         val frameBudgetMs = 1000L / TARGET_FPS
         var lastNanos = System.nanoTime()
-        while (running) {
+        while (running && thread === Thread.currentThread()) {
+            prepareBackground(fade = true)
             val canvas = try {
                 holder.lockCanvas()
             } catch (e: Exception) {
@@ -124,8 +198,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             val dtMs = ((now - lastNanos) / 1_000_000L).coerceAtMost(50L)
             lastNanos = now
             synchronized(world) {
-                if (!inMenu) world.update(dtMs)
-                drawFrame(canvas)
+                if (!released) {
+                    if (!pausedByUi && thread === Thread.currentThread() && !inMenu) world.update(dtMs)
+                    // 暂停可能发生在取得 Canvas 后，仍需提交静态场景，不能提交未绘制的空帧。
+                    drawFrame(canvas)
+                }
             }
             try {
                 holder.unlockCanvasAndPost(canvas)
@@ -144,6 +221,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (released || pausedByUi || inMenu) return true
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 lastTouchX = event.x
@@ -154,7 +232,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             MotionEvent.ACTION_MOVE -> {
                 val dx = event.x - lastTouchX
                 lastTouchX = event.x
-                synchronized(world) { world.dragPlayerBy(dx) }
+                synchronized(world) { if (!released && !pausedByUi) world.dragPlayerBy(dx) }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 val dt = android.os.SystemClock.elapsedRealtime() - downAtMs
@@ -162,7 +240,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                 val still = kotlin.math.abs(event.x - downX) < slop &&
                     kotlin.math.abs(event.y - downY) < slop
                 if (dt < GameConfig.TAP_MAX_MS && still) {
-                    synchronized(world) { world.jumpPlayer() }
+                    synchronized(world) { if (!released && !pausedByUi) world.jumpPlayer() }
                     SoundManager.play(SoundEvent.JUMP)
                 }
             }
@@ -171,9 +249,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
 
     private fun startLoop() {
-        if (running) return
+        if (running || released || pausedByUi) return
         running = true
-        thread = Thread(this, "game-loop").also { it.start() }
+        thread = Thread(this, "game-loop")
+        thread?.start()
     }
 
     private fun stopLoop() {
@@ -188,22 +267,23 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     private fun applySize(w: Float, h: Float) {
         if (w <= 0f || h <= 0f) return
         synchronized(world) {
+            if (released) return
             world.onSize(w, h)
-            prepareSprites(w.toInt(), h.toInt())
+            if (spriteWidth != w.toInt() || spriteHeight != h.toInt()) {
+                prepareSprites(w.toInt(), h.toInt())
+                spriteWidth = w.toInt()
+                spriteHeight = h.toInt()
+            }
         }
+        prepareBackground(fade = false)
     }
 
     private fun prepareSprites(w: Int, h: Int) {
-        backgroundDay = loadAndScale(SPRITE_BACKGROUND, w, h)
-        backgroundSunset = loadAndScale(SPRITE_BACKGROUND_SUNSET, w, h)
-        backgroundNight = loadAndScale(SPRITE_BACKGROUND_NIGHT, w, h)
-        shownBg = null
-        prevBg = null
-        bgFadeStartMs = -1L
         val itemSize = (GameConfig.ITEM_SIZE * w).toInt().coerceAtLeast(8)
         val playerSize = (GameConfig.PLAYER_SIZE * w).toInt().coerceAtLeast(8)
         val beastSize = (GameConfig.BEAST_SIZE * w).toInt().coerceAtLeast(8)
         playerBmp = loadAndScale(SPRITE_PLAYER, playerSize, playerSize)
+        world.player.spriteSizePx = playerBmp?.width?.toFloat()
         for (kind in ItemKind.entries) {
             itemBmps[kind] = loadAndScale(ITEM_SPRITES.getValue(kind), itemSize, itemSize)
         }
@@ -222,41 +302,64 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         null
     }
 
-    private fun currentBgBitmap(): Bitmap? = when (bgMode) {
-        BgMode.DAY -> backgroundDay
-        BgMode.SUNSET -> backgroundSunset
-        BgMode.NIGHT -> backgroundNight
-        BgMode.AUTO -> {
-            val phase = (world.gameTimeMs / GameConfig.BG_PHASE_MS).toInt() % 3
-            when (phase) {
-                0 -> backgroundDay
-                1 -> backgroundSunset
-                else -> backgroundNight
-            }
+    private fun desiredBackground(): BackgroundKey = BackgroundKey(
+        BackgroundSelection.resource(world.gameTimeMs, bgMode), world.viewW.toInt(), world.viewH.toInt())
+
+    private fun prepareBackground(fade: Boolean) {
+        val (key, generation) = synchronized(world) {
+            if (released || world.viewW <= 0 || world.viewH <= 0) return
+            val desired = desiredBackground()
+            if (desired == backgroundKey) return
+            desired to backgroundGeneration
         }
+        // 解码不持有 world 锁或 Surface Canvas；安装前再次核对局面和尺寸。
+        val decoded = backgroundDecoder(key.name, key.width, key.height)
+        synchronized(world) {
+            backgroundLoads++
+            if (released || backgroundGeneration != generation || desiredBackground() != key) return
+            prevBackgroundName = backgroundKey?.name
+            prevBg = if (fade && decoded != null) shownBg else null
+            shownBg = decoded
+            backgroundKey = key
+            bgFadeStartMs = if (prevBg != null) android.os.SystemClock.elapsedRealtime() else -1L
+        }
+    }
+
+    private fun decodeBackground(name: String, width: Int, height: Int): Bitmap? = try {
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.assets.open("$SPRITES_DIR/$name.png").use { BitmapFactory.decodeStream(it, null, options) }
+            options.inSampleSize = 1
+            while (options.outWidth / (options.inSampleSize * 2) >= width &&
+                options.outHeight / (options.inSampleSize * 2) >= height) options.inSampleSize *= 2
+            options.inJustDecodeBounds = false
+            context.assets.open("$SPRITES_DIR/$name.png").use { BitmapFactory.decodeStream(it, null, options) }
+        } catch (_: java.io.IOException) { null }
+
+    private fun drawBackground(canvas: Canvas, bitmap: Bitmap, resource: String) {
+        val split = (bitmap.height * GameConfig.BG_GROUND_FRACTIONS.getValue(resource)).toInt()
+        val source = android.graphics.Rect(0, 0, bitmap.width, split)
+        dstRect.set(0f, 0f, world.viewW, world.groundY)
+        canvas.drawBitmap(bitmap, source, dstRect, bgPaint)
+        source.set(0, split, bitmap.width, bitmap.height)
+        dstRect.set(0f, world.groundY, world.viewW, world.viewH)
+        canvas.drawBitmap(bitmap, source, dstRect, bgPaint)
     }
 
     private fun drawFrame(canvas: Canvas) {
         val w = world.viewW
         val h = world.viewH
-        val bg = currentBgBitmap()
+        val bg = shownBg
         if (bg != null) {
-            if (bg !== shownBg) {
-                prevBg = shownBg
-                shownBg = bg
-                bgFadeStartMs = if (prevBg != null) android.os.SystemClock.elapsedRealtime() else -1L
-            }
-            dstRect.set(0f, 0f, w, h)
-            canvas.drawBitmap(bg, null, dstRect, bgPaint)
+            drawBackground(canvas, bg, checkNotNull(backgroundKey).name)
             val prev = prevBg
             if (prev != null && bgFadeStartMs > 0) {
-                val fade = (android.os.SystemClock.elapsedRealtime() - bgFadeStartMs) / 900f
+                val fade = (android.os.SystemClock.elapsedRealtime() - bgFadeStartMs) / GameConfig.BG_FADE_MS.toFloat()
                 if (fade >= 1f) {
                     prevBg = null
                     bgFadeStartMs = -1L
                 } else {
                     bgPaint.alpha = ((1f - fade) * 255).toInt()
-                    canvas.drawBitmap(prev, null, dstRect, bgPaint)
+                    drawBackground(canvas, prev, checkNotNull(prevBackgroundName))
                     bgPaint.alpha = 255
                 }
             }
@@ -315,9 +418,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         if (p.riding) {
             val vehicleBmp = if (p.vehicleKind == ItemKind.TANK) itemBmps[ItemKind.TANK] else itemBmps[ItemKind.CAR]
             drawSprite(canvas, vehicleBmp, p.x, cy + p.sizePx * 0.15f, p.sizePx * 1.3f, Color.rgb(92, 98, 112))
-            drawSprite(canvas, playerBmp, p.x, cy - p.sizePx * 0.2f, p.sizePx * 0.8f, Color.rgb(232, 181, 124))
+            drawSprite(canvas, playerBmp, p.x, p.displayCenterY(world.groundY, world.gameTimeMs, world.viewH), p.displaySizePx, Color.rgb(232, 181, 124))
         } else {
-            drawSprite(canvas, playerBmp, p.x, cy, p.sizePx, Color.rgb(232, 181, 124))
+            drawSprite(canvas, playerBmp, p.x, p.displayCenterY(world.groundY, world.gameTimeMs, world.viewH), p.displaySizePx, Color.rgb(232, 181, 124))
         }
     }
 

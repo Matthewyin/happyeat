@@ -21,12 +21,16 @@
     <string name="chinese">中文</string>
     <string name="welcome_title">Welcome to HappyEat</string>
     <string name="welcome_prompt">Enter a username for the local leaderboard (2–20 characters)</string>
+    <string name="edit_username">Edit username</string>
+    <string name="edit_username_prompt">Use 2–20 characters.</string>
+    <string name="save">Save</string>
+    <string name="current_username_fmt">Current username: %1$s</string>
     <string name="username">Username</string>
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
     <string name="name_too_short">Name must be 2–20 characters</string>
     <string name="no_records">No records yet — play a round!</string>
-    <string name="best_marker_fmt">★ %1$d. %2$s — %3$d (%4$s)</string>
+    <string name="best_marker_fmt">Personal best · %1$d. %2$s — %3$d (%4$s)</string>
     <string name="rank_entry_fmt">%1$d. %2$s — %3$d (%4$s)</string>
     <string name="menu_start">Start Game</string>
     <string name="menu_help">Help</string>
@@ -39,8 +43,8 @@
     <string name="help_hazard">Rock / Bomb / Knife: lose a life on contact — dodge! (red ring)</string>
     <string name="help_beast">Tigers, lions &amp; wolves charge along the ground — tap quickly to jump over</string>
     <string name="help_controls">Drag to move • Quick tap to jump</string>
-    <string name="tutorial_drag">⬅ Hold &amp; drag to move ➡</string>
-    <string name="tutorial_jump">⬆ Quick tap to jump</string>
+    <string name="tutorial_drag">Hold &amp; drag to move</string>
+    <string name="tutorial_jump">Quick tap to jump</string>
     <string name="tutorial_hint">Touch anywhere to start</string>
     <string name="entry_language">Language / 语言</string>
     <string name="entry_background">Background</string>
@@ -51,4 +55,8 @@
     <string name="exit_game">Exit Game</string>
     <string name="exit_confirm">Quit HappyEat?</string>
     <string name="exit_message">Your progress and best score are saved on this device.</string>
+    <string name="help_air_move">Tap to jump, then touch and drag left or right to move in that direction while airborne.</string>
+    <string name="help_edges">Avoid staying near the screen edges, where tigers, lions and wolves can rush in before you have time to dodge.</string>
+    <string name="back">Back</string>
+    <string name="pause_action">Pause</string>
 </resources>

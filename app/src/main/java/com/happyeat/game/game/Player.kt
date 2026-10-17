@@ -7,6 +7,14 @@ import kotlin.math.sin
 class Player {
     var x = 0f
     var sizePx = 0f
+    var spriteSizePx: Float? = null
+    val displaySizePx: Float
+        get() = spriteSizePx ?: (sizePx * if (riding) GameConfig.RIDING_PLAYER_FALLBACK_SCALE else 1f)
+
+    fun displayCenterY(groundY: Float, nowMs: Long, viewH: Float): Float =
+        groundY - sizePx / 2f - heightOffset(nowMs, viewH) -
+            if (riding) sizePx * GameConfig.RIDING_PLAYER_OFFSET else 0f
+
     var riding = false
     var vehicleKind: ItemKind? = null
     var vehicleHits = 0
@@ -16,8 +24,8 @@ class Player {
     private var jumpStartMs = Long.MIN_VALUE
 
     fun hitbox(groundY: Float, nowMs: Long, viewH: Float): Aabb {
-        val half = sizePx * GameConfig.HITBOX_SCALE / 2f
-        val cy = groundY - sizePx / 2f - heightOffset(nowMs, viewH)
+        val half = displaySizePx * GameConfig.HITBOX_SCALE / 2f
+        val cy = displayCenterY(groundY, nowMs, viewH)
         return Aabb(x - half, cy - half, x + half, cy + half)
     }
 

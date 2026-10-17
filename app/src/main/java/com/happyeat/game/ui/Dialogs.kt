@@ -25,171 +25,97 @@ import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
 
-private const val CARD_COLOR = 0xF0101724.toInt()
-private const val MUTED = 0xFF94A3B8.toInt()
-private const val ACCENT = 0xFFFCD34D.toInt()
+private const val MUTED = Candy.MUTED_DARK
+private const val ACCENT = Candy.BLUE_DARK
 
-private fun dp(activity: AppCompatActivity, v: Int): Int =
-    (v * activity.resources.displayMetrics.density).toInt()
+private fun dp(activity: AppCompatActivity, v: Int): Int = uiDp(activity, v)
+private fun dpf(activity: AppCompatActivity, v: Float): Float = v * activity.resources.displayMetrics.density
 
-private fun dpf(activity: AppCompatActivity, v: Float): Float =
-    v * activity.resources.displayMetrics.density
-
-/** 深色圆角卡片弹窗骨架，返回 dialog 和内容列。 */
 private fun cardDialog(activity: AppCompatActivity, title: String): Pair<Dialog, LinearLayout> {
     val dialog = Dialog(activity)
     dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-
-    val outer = FrameLayout(activity).apply {
-        setPadding(dp(activity, 28), dp(activity, 16), dp(activity, 28), dp(activity, 16))
+    val scroll = android.widget.ScrollView(activity).apply {
+        setPadding(dp(activity, Candy.GAP), dp(activity, Candy.GAP), dp(activity, Candy.GAP), dp(activity, Candy.GAP))
     }
     val card = LinearLayout(activity).apply {
         orientation = LinearLayout.VERTICAL
-        background = GradientDrawable().apply {
-            cornerRadius = dpf(activity, 30f)
-            setColor(CARD_COLOR)
-        }
-        setPadding(dp(activity, 30), dp(activity, 26), dp(activity, 30), dp(activity, 24))
+        background = uiShape(activity, Candy.CREAM_CARD)
+        setPadding(dp(activity, Candy.PAD), dp(activity, Candy.PAD), dp(activity, Candy.PAD), dp(activity, Candy.PAD))
     }
-    outer.addView(card, FrameLayout.LayoutParams(
-        FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT))
-    dialog.setContentView(outer)
-
-    val titleView = TextView(activity).apply {
-        text = title
-        textSize = 19f
-        setTextColor(Color.WHITE)
-        setTypeface(typeface, Typeface.BOLD)
-    }
-    card.addView(titleView, LinearLayout.LayoutParams(
-        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
-    ).apply { bottomMargin = dp(activity, 16) })
-
+    scroll.addView(card)
+    dialog.setContentView(scroll)
+    card.addView(cardText(activity, title, Candy.TITLE).apply { setTypeface(typeface, Typeface.BOLD) }, rowParams(activity, Candy.GAP))
     dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-    dialog.window?.setLayout(
-        activity.resources.displayMetrics.widthPixels - dp(activity, 8),
-        LinearLayout.LayoutParams.WRAP_CONTENT,
-    )
+    dialog.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+        android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
+    dialog.setOnShowListener {
+        dialog.window?.setLayout(activity.resources.displayMetrics.widthPixels - dp(activity, Candy.DIALOG_WIDTH_MARGIN),
+            LinearLayout.LayoutParams.WRAP_CONTENT)
+    }
     return dialog to card
 }
 
-private fun rowParams(activity: AppCompatActivity, h: Int): LinearLayout.LayoutParams =
-    LinearLayout.LayoutParams(
-        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
-    ).apply { bottomMargin = dp(activity, h) }
+private fun rowParams(activity: AppCompatActivity, h: Int) = LinearLayout.LayoutParams(
+    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(activity, h) }
 
-private fun cardText(activity: AppCompatActivity, text: String, size: Float = 15f, color: Int = Color.WHITE): TextView =
-    TextView(activity).apply {
-        this.text = text
-        textSize = size
-        setTextColor(color)
-    }
+private fun cardText(activity: AppCompatActivity, text: String, size: Float = Candy.BODY, color: Int = Candy.INK) =
+    TextView(activity).apply { this.text = text; textSize = size; setTextColor(color) }
 
-/** 菜单行：圆角底，可选中态。 */
-private fun menuRow(
-    activity: AppCompatActivity,
-    label: String,
-    selected: Boolean = false,
-    onClick: () -> Unit,
-): LinearLayout {
-    val row = LinearLayout(activity).apply {
-        orientation = LinearLayout.HORIZONTAL
+private fun menuRow(activity: AppCompatActivity, label: String, selected: Boolean = false, onClick: () -> Unit): LinearLayout =
+    LinearLayout(activity).apply {
         gravity = Gravity.CENTER_VERTICAL
-        background = GradientDrawable().apply {
-            cornerRadius = dpf(activity, 18f)
-            if (selected) {
-                setColor(0x2EF59E0B)
-                setStroke(dp(activity, 1), 0xFFF59E0B.toInt())
-            } else {
-                setColor(0x14FFFFFF)
-            }
-        }
-        setPadding(dp(activity, 18), dp(activity, 13), dp(activity, 18), dp(activity, 13))
-        addView(cardText(activity, label, 15f))
-        val check = cardText(activity, if (selected) "✓" else "", 15f, 0xFFFCD34D.toInt())
-        check.gravity = Gravity.END
-        addView(check, LinearLayout.LayoutParams(
-            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f,
-        ).apply { gravity = Gravity.END })
+        background = uiShape(activity, if (selected) Candy.MINT else Candy.CREAM_CARD)
+        minimumHeight = dp(activity, Candy.TOUCH)
+        setPadding(dp(activity, Candy.GAP), dp(activity, Candy.GAP), dp(activity, Candy.GAP), dp(activity, Candy.GAP))
+        addView(cardText(activity, label), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        if (selected) addView(uiIcon(activity, "ui_check"), LinearLayout.LayoutParams(dp(activity, Candy.ICON), dp(activity, Candy.ICON)))
         setOnClickListener { onClick() }
     }
-    return row
-}
 
 fun showExitConfirmDialog(activity: AppCompatActivity) {
     val (dialog, card) = cardDialog(activity, activity.getString(R.string.exit_confirm))
-    card.addView(cardText(activity, activity.getString(R.string.exit_message), 15f, MUTED))
-    val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
-    fun pill(text: String, danger: Boolean, onClick: () -> Unit) {
-        val btn = TextView(activity).apply {
-            this.text = text
-            textSize = 15f
-            setTypeface(typeface, Typeface.BOLD)
-            gravity = Gravity.CENTER
-            background = GradientDrawable().apply {
-                cornerRadius = dpf(activity, 22f)
-                if (danger) {
-                    setColor(0x40EF4444)
-                    setStroke(dp(activity, 1), 0xFFEF4444.toInt())
-                } else {
-                    setColor(0x2EFFFFFF)
-                }
-            }
-            setPadding(0, dp(activity, 12), 0, dp(activity, 12))
-            setOnClickListener { onClick() }
-        }
-        row.addView(btn, LinearLayout.LayoutParams(
-            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f,
-        ).apply { marginEnd = dp(activity, if (danger) 12 else 0) })
-    }
-    pill(activity.getString(R.string.cancel), false) { dialog.dismiss() }
-    pill(activity.getString(R.string.exit_game), true) {
-        dialog.dismiss()
-        activity.finishAffinity()
-    }
-    card.addView(row, LinearLayout.LayoutParams(
-        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
-    ).apply { topMargin = dp(activity, 20) })
+    card.addView(cardText(activity, activity.getString(R.string.exit_message)), rowParams(activity, Candy.PAD))
+    card.addView(uiButton(activity, R.string.cancel, "ui_close") { dialog.dismiss() }, rowParams(activity, Candy.GAP))
+    card.addView(uiButton(activity, R.string.exit_game, "ui_exit", primary = true) {
+        dialog.dismiss(); activity.finishAffinity()
+    }, rowParams(activity, Candy.GAP))
     dialog.show()
 }
 
-fun showNameDialog(activity: AppCompatActivity, onSaved: () -> Unit) {
-    val (dialog, card) = cardDialog(activity, activity.getString(R.string.welcome_title))
-    card.addView(cardText(activity, activity.getString(R.string.welcome_prompt), 14f, MUTED))
+fun showNameDialog(activity: AppCompatActivity, editing: Boolean = false, onSaved: () -> Unit) {
+    val (dialog, card) = cardDialog(activity, activity.getString(
+        if (editing) R.string.edit_username else R.string.welcome_title))
+    card.addView(cardText(activity, activity.getString(
+        if (editing) R.string.edit_username_prompt else R.string.welcome_prompt)), rowParams(activity, Candy.GAP))
     val input = EditText(activity).apply {
         hint = activity.getString(R.string.username)
+        inputType = android.text.InputType.TYPE_CLASS_TEXT
+        textSize = Candy.BODY
         filters = arrayOf(InputFilter.LengthFilter(20))
-        background = GradientDrawable().apply {
-            cornerRadius = dpf(activity, 14f)
-            setColor(0x14FFFFFF)
-            setStroke(dp(activity, 1), 0x3FFFFFFF.toInt())
+        background = uiShape(activity, Candy.CREAM_CARD)
+        setPadding(dp(activity, Candy.GAP), dp(activity, Candy.GAP), dp(activity, Candy.GAP), dp(activity, Candy.GAP))
+        setTextColor(Candy.INK); setHintTextColor(Candy.MUTED_DARK)
+        setSingleLine(true)
+        if (editing) {
+            setText(Prefs.userName(activity).orEmpty())
+            setSelection(text.length)
         }
-        setPadding(dp(activity, 16), dp(activity, 12), dp(activity, 16), dp(activity, 12))
-        setTextColor(Color.WHITE)
-        setHintTextColor(0xFF94A3B8.toInt())
     }
-    card.addView(input, LinearLayout.LayoutParams(
-        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
-    ).apply { topMargin = dp(activity, 12); bottomMargin = dp(activity, 18) })
-    val ok = TextView(activity).apply {
-        text = activity.getString(R.string.ok)
-        textSize = 15f
-        setTypeface(typeface, Typeface.BOLD)
-        setTextColor(ACCENT)
-        gravity = Gravity.END
-        setPadding(0, dp(activity, 4), dp(activity, 4), 0)
+    card.addView(input, rowParams(activity, Candy.GAP))
+    val errorText = cardText(activity, activity.getString(R.string.name_too_short), Candy.SMALL_TEXT, Candy.TOMATO).apply {
+        visibility = android.view.View.GONE
+        accessibilityLiveRegion = android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE
     }
-    ok.setOnClickListener {
+    card.addView(errorText, rowParams(activity, Candy.GAP))
+    if (editing) card.addView(uiButton(activity, R.string.cancel, "ui_close") {
+        dialog.dismiss()
+    }, rowParams(activity, Candy.GAP))
+    card.addView(uiButton(activity, if (editing) R.string.save else R.string.ok, "ui_check", primary = true) {
         val name = input.text.toString().trim()
         if (name.length in 2..20) {
-            Prefs.setUserName(activity, name)
-            dialog.dismiss()
-            onSaved()
-        } else {
-            input.error = activity.getString(R.string.name_too_short)
-        }
-    }
-    card.addView(ok)
+            Prefs.setUserName(activity, name); dialog.dismiss(); onSaved()
+        } else errorText.visibility = android.view.View.VISIBLE
+    }, rowParams(activity, Candy.GAP))
     dialog.show()
 }
 

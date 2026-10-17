@@ -21,12 +21,16 @@
     <string name="chinese">中文</string>
     <string name="welcome_title">欢迎来到 HappyEat</string>
     <string name="welcome_prompt">输入一个用户名用于本机排行榜（2–20 个字符）</string>
+    <string name="edit_username">修改用户名</string>
+    <string name="edit_username_prompt">请输入 2–20 个字符</string>
+    <string name="save">保存</string>
+    <string name="current_username_fmt">当前用户名：%1$s</string>
     <string name="username">用户名</string>
     <string name="ok">确定</string>
     <string name="cancel">取消</string>
     <string name="name_too_short">用户名需 2–20 个字符</string>
     <string name="no_records">还没有记录，先玩一局吧！</string>
-    <string name="best_marker_fmt">★ %1$d. %2$s — %3$d（%4$s）</string>
+    <string name="best_marker_fmt">个人最佳 · %1$d. %2$s — %3$d（%4$s）</string>
     <string name="rank_entry_fmt">%1$d. %2$s — %3$d（%4$s）</string>
     <string name="menu_start">开始游戏</string>
     <string name="menu_help">帮助</string>
@@ -39,8 +43,8 @@
     <string name="help_hazard">石头/炸弹/刀：碰到掉一条命——快躲！（红圈）</string>
     <string name="help_beast">虎/狮/狼贴地冲过来——快速点按跳跃躲过</string>
     <string name="help_controls">按住拖动移动 • 快速点按跳跃</string>
-    <string name="tutorial_drag">⬅ 按住拖动移动 ➡</string>
-    <string name="tutorial_jump">⬆ 快速点按跳跃</string>
+    <string name="tutorial_drag">按住拖动移动</string>
+    <string name="tutorial_jump">快速点按跳跃</string>
     <string name="tutorial_hint">轻触任意处开始</string>
     <string name="entry_language">语言 / Language</string>
     <string name="entry_background">背景</string>
@@ -51,4 +55,8 @@
     <string name="exit_game">退出游戏</string>
     <string name="exit_confirm">确定要退出 HappyEat 吗？</string>
     <string name="exit_message">进度和最高分都保存在本机。</string>
+    <string name="help_air_move">点按跳起后，再按住屏幕向左或向右拖动，就能在空中向对应方向移动。</string>
+    <string name="help_edges">尽量不要贴着屏幕两侧停留，以免虎、狮、狼从边缘冲出来时来不及躲避。</string>
+    <string name="back">返回</string>
+    <string name="pause_action">暂停</string>
 </resources>

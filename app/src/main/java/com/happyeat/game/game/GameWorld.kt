@@ -3,7 +3,7 @@ package com.happyeat.game.game
 import com.happyeat.game.config.GameConfig
 import kotlin.random.Random
 
-class GameWorld(private val listener: Listener) {
+class GameWorld(var listener: Listener? = null) {
 
     interface Listener {
         fun onHudChanged(score: Int, lives: Int, pointsToNextLife: Int)
@@ -60,6 +60,11 @@ class GameWorld(private val listener: Listener) {
         player.x = player.x.coerceIn(player.sizePx / 2f, w - player.sizePx / 2f)
     }
 
+    fun refreshHud() {
+        listener?.onHudChanged(score, lives, if (gameOver) 0 else (nextExtraLifeAt - score).coerceAtLeast(0))
+        publishVehicleHud(force = true)
+    }
+
     fun reset() {
         items.clear()
         beasts.clear()
@@ -77,7 +82,7 @@ class GameWorld(private val listener: Listener) {
         player.invincibleUntilMs = 0L
         player.resetState()
         if (viewW > 0f) player.x = viewW / 2f
-        listener.onHudChanged(score, lives, nextExtraLifeAt)
+        listener?.onHudChanged(score, lives, nextExtraLifeAt)
         publishVehicleHud(force = true)
     }
 
@@ -202,7 +207,7 @@ class GameWorld(private val listener: Listener) {
             lives++
             nextExtraLifeAt += GameConfig.POINTS_PER_EXTRA_LIFE
         }
-        listener.onHudChanged(score, lives, (nextExtraLifeAt - score).coerceAtLeast(0))
+        listener?.onHudChanged(score, lives, (nextExtraLifeAt - score).coerceAtLeast(0))
     }
 
     private fun loseLife() {
@@ -211,12 +216,12 @@ class GameWorld(private val listener: Listener) {
         if (lives <= 0) {
             lives = 0
             gameOver = true
-            listener.onHudChanged(score, lives, 0)
+            listener?.onHudChanged(score, lives, 0)
             SoundManager.play(SoundEvent.GAMEOVER)
-            listener.onGameOver(score)
+            listener?.onGameOver(score)
         } else {
             player.invincibleUntilMs = gameTimeMs + GameConfig.INVINCIBLE_AFTER_HIT_MS
-            listener.onHudChanged(score, lives, (nextExtraLifeAt - score).coerceAtLeast(0))
+            listener?.onHudChanged(score, lives, (nextExtraLifeAt - score).coerceAtLeast(0))
         }
     }
 
@@ -233,7 +238,7 @@ class GameWorld(private val listener: Listener) {
         hudRiding = riding
         hudSeconds = seconds
         hudHits = hits
-        listener.onVehicleChanged(riding, hits, seconds)
+        listener?.onVehicleChanged(riding, hits, seconds)
     }
 
     private fun secondsLeftOfVehicle(): Int =

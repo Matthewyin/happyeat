@@ -10,6 +10,10 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.ViewModelProvider
+import com.happyeat.game.game.GameSession
+import com.happyeat.game.game.GameSession.Page
+import kotlinx.coroutines.cancel
 import androidx.core.os.LocaleListCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -57,14 +61,20 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
     private lateinit var settingsPage: SettingsPage
     private lateinit var helpPage: HelpPage
     private lateinit var leaderboardPage: LeaderboardPage
-    private var pausedByUi = false
-    private var helpFromPause = false
-    private val router = OverlayRouter()
+    private lateinit var session: GameSession
+    private var pausedByUi: Boolean
+        get() = session.pausedByUi
+        set(value) { session.pausedByUi = value }
+    private var helpFromPause: Boolean
+        get() = session.helpFromPause
+        set(value) { session.helpFromPause = value }
+    private val router get() = session.router
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         SoundManager.init(this)
-        gameView = GameView(this)
+        session = ViewModelProvider(this)[GameSession::class.java]
+        gameView = GameView(this, session)
         gameView.hudListener = this
         gameView.bgMode = parseBgMode(Prefs.backgroundMode(this))
 
@@ -90,6 +100,7 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
         root.addView(tutorialPanel, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         setContentView(root)
 
+        pausePanel.onMenu = { if (!finishIfDead()) backToMenu() }
         pausePanel.onResume = { resumeGame() }
         pausePanel.onSettings = { openSettingsPage(fromPause = true) }
         pausePanel.onHelp = { openHelpPage(fromPause = true) }
@@ -104,15 +115,20 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
             SoundManager.play(SoundEvent.CLICK)
             showExitConfirmDialog(this)
         }
-        settingsPage.onBack = {
+        settingsPage.onBack = back@{
+            if (session.page != Page.SETTINGS || finishIfDead()) return@back
             settingsPage.hidePage()
             when (router.backFromSettings()) {
                 OverlayRouter.Place.PAUSE -> {
+                    session.page = Page.PAUSE
                     pausePanel.show()
                     applyAudioState()
                 }
                 else -> showMenuPage()
             }
+        }
+        settingsPage.onEditUserName = {
+            showNameDialog(this, editing = true) { settingsPage.onShow() }
         }
         settingsPage.onLanguageSelected = { tag ->
             val locales = when (tag) {
@@ -123,20 +139,24 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
             androidx.appcompat.app.AppCompatDelegate.setApplicationLocales(locales)
         }
         settingsPage.onBackgroundSelected = { mode -> gameView.bgMode = mode }
-        helpPage.onBack = {
+        helpPage.onBack = back@{
+            if (session.page != Page.HELP || finishIfDead()) return@back
             helpPage.hidePage()
             if (helpFromPause) {
+                session.page = Page.PAUSE
                 pausePanel.show()
                 applyAudioState()
             } else {
                 showMenuPage()
             }
         }
-        leaderboardPage.onBack = {
+        leaderboardPage.onBack = back@{
+            if (session.page != Page.LEADERBOARD) return@back
             leaderboardPage.hidePage()
             when (router.backFromLeaderboard()) {
                 // 从结束面板进来的，返回时把那张面板再显示出来，分数文字还在。
                 OverlayRouter.Place.GAME_OVER -> {
+                    session.page = Page.GAME_OVER
                     gameOverPanel.show()
                     applyAudioState()
                 }
@@ -147,12 +167,11 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
         tutorialPanel.onDismiss = {
             Prefs.setTutorialShown(this)
             tutorialPanel.hide()
-            gameView.startGame()
+            restartGame()
         }
 
-        onHudChanged(0, GameConfig.START_LIVES, GameConfig.POINTS_PER_EXTRA_LIFE)
-        onVehicleChanged(false, 0, 0)
-        showMenuPage()
+        restorePage()
+        gameView.refreshHud()
     }
 
     override fun onStart() {
@@ -179,6 +198,8 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
     }
 
     override fun onDestroy() {
+        gameView.release()
+        scope.cancel()
         SoundManager.release()
         super.onDestroy()
     }
@@ -196,74 +217,96 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
     }
 
     override fun onGameOver(score: Int) {
+        val dead = synchronized(session.world) { !session.inMenu && session.world.gameOver }
+        if (dead) finishGame()
+    }
+
+    private fun finishIfDead(): Boolean {
+        gameView.pauseGame()
+        val dead = synchronized(session.world) { !session.inMenu && session.world.gameOver }
+        if (dead) finishGame()
+        return dead
+    }
+
+    private fun finishGame() {
+        gameView.pauseGame()
+        val score = synchronized(session.world) { session.world.score }
+        if (session.settled && session.page == Page.LEADERBOARD) return
+        hideAllUi()
+        session.page = Page.GAME_OVER
+        pausedByUi = true
         SoundManager.stopBgm()
         val best = max(Prefs.bestScore(this), score)
-        Prefs.setBestScore(this, best)
         gameOverPanel.show(score, best)
-        val user = Prefs.userName(this).orEmpty()
-        scope.launch {
-            AppDatabase.get(applicationContext).scoreDao().insert(
-                ScoreRecord(userName = user, score = score, createdAt = System.currentTimeMillis()),
-            )
+        if (session.settled) return
+        session.settled = true
+        Prefs.setBestScore(this, best)
+        val record = ScoreRecord(userName = Prefs.userName(this).orEmpty(), score = score, createdAt = System.currentTimeMillis())
+        val dao = AppDatabase.get(applicationContext).scoreDao()
+        // 保存只捕获 DAO 和成绩，不随旧 Activity 销毁而取消。
+        CoroutineScope(Dispatchers.IO).launch { dao.insert(record) }
+    }
+
+    private fun restorePage() {
+        if (session.world.gameOver && !session.settled) {
+            finishGame()
+            return
         }
+        hideAllUi()
+        when (session.page) {
+            Page.MENU -> menuPage.showPage()
+            Page.PAUSE -> pausePanel.show()
+            Page.SETTINGS -> settingsPage.showPage()
+            Page.HELP -> helpPage.showPage()
+            Page.LEADERBOARD -> {
+                gameOverPanel.show(session.world.score, Prefs.bestScore(this))
+                gameOverPanel.hide()
+                leaderboardPage.showPage()
+                loadLeaderboard()
+            }
+            Page.GAME_OVER -> gameOverPanel.show(session.world.score, Prefs.bestScore(this))
+            Page.TUTORIAL -> tutorialPanel.show()
+            Page.GAME -> Unit
+        }
+        applyAudioState()
     }
 
     private fun buildHud(): View {
         val bar = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(dp(12), dp(10), dp(12), dp(6))
+            gravity = Gravity.TOP
+            setPadding(dp(com.happyeat.game.ui.Candy.GAP), dp(com.happyeat.game.ui.Candy.GAP),
+                dp(com.happyeat.game.ui.Candy.GAP), dp(com.happyeat.game.ui.Candy.SMALL))
         }
-
-        fun infoLabel(sizeSp: Float, color: Int = Color.WHITE): TextView = TextView(this).apply {
-            setTextColor(color)
-            textSize = sizeSp
-        }
-
         val left = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = 16 * resources.displayMetrics.density
-                setColor(0x59101724.toInt())
-            }
-            setPadding(dp(14), dp(8), dp(16), dp(8))
+            background = com.happyeat.game.ui.uiShape(this@MainActivity, com.happyeat.game.ui.Candy.CREAM_CARD)
+            setPadding(dp(com.happyeat.game.ui.Candy.GAP), dp(com.happyeat.game.ui.Candy.SMALL),
+                dp(com.happyeat.game.ui.Candy.GAP), dp(com.happyeat.game.ui.Candy.SMALL))
         }
-        scoreText = infoLabel(18f)
-        livesText = infoLabel(14f)
-        nextLifeText = infoLabel(12f)
-        vehicleText = infoLabel(12f, Color.rgb(255, 213, 79))
+        fun label(size: Float) = TextView(this).apply {
+            textSize = size
+            setTextColor(com.happyeat.game.ui.Candy.INK)
+        }
+        scoreText = label(com.happyeat.game.ui.Candy.HUD_SCORE)
+        livesText = label(com.happyeat.game.ui.Candy.SMALL_TEXT)
+        nextLifeText = label(com.happyeat.game.ui.Candy.HUD_SMALL)
+        vehicleText = label(com.happyeat.game.ui.Candy.HUD_SMALL)
         left.addView(scoreText)
-        left.addView(livesText)
-        left.addView(nextLifeText)
-        left.addView(vehicleText)
-        bar.addView(
-            left,
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT),
-        )
-        bar.addView(View(this), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
-        val circle = LinearLayout.LayoutParams(dp(52), dp(52)).apply { marginStart = dp(10) }
-        bar.addView(hudButton("⏸") { pauseGame() }, LinearLayout.LayoutParams(circle).apply { marginEnd = dp(10) })
-        bar.addView(hudButton("⚙") { openSettingsFromGear() }, circle)
-        return bar
-    }
-
-    private fun hudButton(label: String, onClick: () -> Unit): Button = Button(this).apply {
-        text = label
-        textSize = 17f
-        minWidth = 0
-        minHeight = 0
-        setPadding(0, 0, 0, 0)
-        val shape = android.graphics.drawable.GradientDrawable().apply {
-            shape = android.graphics.drawable.GradientDrawable.OVAL
-            setColor(0x59101724.toInt())
-            setStroke(dp(1), 0xFFE2E8F0.toInt())
+        val life = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        life.addView(com.happyeat.game.ui.uiIcon(this, "ui_heart"), LinearLayout.LayoutParams(
+            dp(com.happyeat.game.ui.Candy.ICON), dp(com.happyeat.game.ui.Candy.ICON)))
+        life.addView(livesText)
+        left.addView(life); left.addView(nextLifeText); left.addView(vehicleText)
+        bar.addView(left, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        fun button(res: Int, icon: String, action: () -> Unit) {
+            bar.addView(com.happyeat.game.ui.uiButton(this, res, icon, round = true, action = action),
+                LinearLayout.LayoutParams(dp(com.happyeat.game.ui.Candy.TOUCH), dp(com.happyeat.game.ui.Candy.TOUCH)).apply {
+                    marginStart = dp(com.happyeat.game.ui.Candy.SMALL)
+                })
         }
-        background = android.graphics.drawable.RippleDrawable(
-            android.content.res.ColorStateList.valueOf(0x33FFFFFF),
-            shape,
-            null,
-        )
-        setTextColor(Color.WHITE)
-        setOnClickListener { onClick() }
+        button(R.string.pause_action, "ui_pause") { pauseGame() }
+        button(R.string.settings, "ui_settings") { openSettingsFromGear() }
+        return bar
     }
 
     private fun anyOverlayVisible(): Boolean =
@@ -290,10 +333,16 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
         leaderboardPage.hidePage()
     }
 
-    private fun showMenuPage() {
-        // 结束面板如果还留着，下一次开始会被它整屏挡住。
-        gameOverPanel.hide()
+    private fun hideAllUi() {
         hideAllPages()
+        pausePanel.hide()
+        gameOverPanel.hide()
+        tutorialPanel.hide()
+    }
+
+    private fun showMenuPage() {
+        hideAllUi()
+        session.page = Page.MENU
         menuPage.showPage()
         pausedByUi = false
         // 菜单表示没有进行中的一局。循环若还在跑，这里停掉并清空，避免菜单盖住一局还在结算的游戏。
@@ -304,12 +353,14 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
     /** 对局中点齿轮：先暂停循环，再盖设置。返回时回到暂停面板。 */
     private fun openSettingsFromGear() {
         if (gameOverPanel.isVisibleNow() || anyPageVisible()) return
+        if (finishIfDead()) return
+        pausedByUi = true
         router.settingsWhilePaused()
-        pauseGame()
         presentSettings()
     }
 
     private fun openSettingsPage(fromPause: Boolean = false) {
+        if (finishIfDead()) return
         if (fromPause) {
             router.settingsWhilePaused()
             pausedByUi = true
@@ -320,6 +371,7 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
     }
 
     private fun presentSettings() {
+        session.page = Page.SETTINGS
         pausePanel.hide()
         hideAllPages()
         settingsPage.showPage()
@@ -327,6 +379,8 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
     }
 
     private fun openHelpPage(fromPause: Boolean = false) {
+        if (finishIfDead()) return
+        session.page = Page.HELP
         helpFromPause = fromPause
         if (fromPause) pausedByUi = true
         pausePanel.hide()
@@ -336,6 +390,7 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
     }
 
     private fun openLeaderboardPage(fromGameOver: Boolean) {
+        session.page = Page.LEADERBOARD
         router.openLeaderboard(fromGameOver)
         // 结束面板全屏可点。不先藏掉的话，看完排行榜再开一局，旧面板还挡在新局上面。
         if (fromGameOver) gameOverPanel.hide()
@@ -348,32 +403,38 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
     private fun loadLeaderboard() {
         scope.launch {
             val records = AppDatabase.get(applicationContext).scoreDao().topScores(50)
+            if (session.page != Page.LEADERBOARD || isDestroyed) return@launch
             leaderboardPage.render(records, Prefs.userName(this@MainActivity), dateFormat)
         }
     }
 
     private fun startFromMenu() {
         SoundManager.play(SoundEvent.CLICK)
-        gameOverPanel.hide()
-        menuPage.hidePage()
+        gameView.pauseGame()
+        hideAllUi()
+        session.settled = false
+        pausedByUi = false
         if (!Prefs.tutorialShown(this)) {
+            session.page = Page.TUTORIAL
             tutorialPanel.show()
             applyAudioState()
         } else {
-            gameView.startGame()
-            applyAudioState()
+            restartGame()
         }
     }
 
     private fun pauseGame() {
         if (gameOverPanel.isVisibleNow() || anyPageVisible()) return
+        if (finishIfDead()) return
+        session.page = Page.PAUSE
         pausedByUi = true
-        gameView.pauseGame()
         pausePanel.show()
         applyAudioState()
     }
 
     private fun resumeGame() {
+        if (session.page != Page.PAUSE || finishIfDead()) return
+        session.page = Page.GAME
         pausedByUi = false
         pausePanel.hide()
         gameView.resumeGame()
@@ -381,8 +442,14 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
     }
 
     private fun restartGame() {
-        gameOverPanel.hide()
-        hideAllPages()
+        gameView.pauseGame()
+        hideAllUi()
+        session.page = Page.GAME
+        session.settled = false
+        pausedByUi = false
+        helpFromPause = false
+        router.settingsFromMenu()
+        router.openLeaderboard(false)
         gameView.startGame()
         applyAudioState()
     }

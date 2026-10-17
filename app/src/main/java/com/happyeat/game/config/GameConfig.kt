@@ -34,6 +34,9 @@ object GameConfig {
     const val BEAST_JUMP_HEIGHT = 0.12f
     const val BEAST_JUMP_DURATION_MS = 500L
 
+    const val RIDING_PLAYER_OFFSET = 0.2f
+    const val RIDING_PLAYER_FALLBACK_SCALE = 0.8f
+
     const val PLAYER_SIZE = 0.11f
     const val ITEM_SIZE = 0.075f
     const val BEAST_SIZE = 0.12f
@@ -45,5 +48,54 @@ object GameConfig {
     const val TAP_MAX_MS = 220L
     const val TAP_SLOP_DP = 12f
 
+    // 由最终六张素材的实际草地上沿核验，物理地面保持不变。
+    val BG_GROUND_FRACTIONS: Map<String, Float> = mapOf(
+        "background" to 0.833f,
+        "background_sunset" to 0.805f,
+        "background_night" to 0.805f,
+        "background_orchard" to 0.73f,
+        "background_orchard_sunset" to 0.72f,
+        "background_orchard_night" to 0.72f,
+    )
+    const val BG_FADE_MS = 900L
+
     const val BG_PHASE_MS = 60_000L
+
+    object Ui {
+        const val INK = 0xFF062B45.toInt()
+        const val CREAM_CARD = 0xFFFFF8E7.toInt()
+        const val BLUE = 0xFF176DC5.toInt()
+        const val BLUE_DARK = 0xFF0B477C.toInt()
+        const val GOLD = 0xFFFFD34D.toInt()
+        const val MINT = 0xFFA2E8C2.toInt()
+        const val SKY = 0xFFBCEBFA.toInt()
+        const val MUTED_DARK = 0xFF456476.toInt()
+        const val TOMATO = 0xFFB53C3C.toInt()
+        const val AMBER_DARK = BLUE_DARK
+        const val SCRIM = 0x99062B45.toInt()
+        const val RIPPLE = 0x33062B45
+        const val RADIUS = 24f
+        const val STROKE = 3
+        const val GAP = 12
+        const val PAD = 20
+        const val SMALL = 8
+        const val TOUCH = 52
+        const val ICON = 28
+        const val ART_ICON = 48
+        const val TITLE = 26f
+        const val BODY = 16f
+        const val PRIMARY_TEXT = 20f
+        const val TEXT_SHADOW = 2f
+        const val SMALL_TEXT = 14f
+        const val MENU_PRIMARY_TEXT = 22f
+        const val MENU_PRIMARY_HEIGHT = 64
+        const val MENU_GAP = 4
+        const val HERO_WEIGHT = 1f
+        const val HERO_MIN = 160
+        const val BRAND_HEIGHT = 120
+        const val ICON_LIMIT = 256
+        const val DIALOG_WIDTH_MARGIN = 24
+        const val HUD_SMALL = 12f
+        const val HUD_SCORE = 18f
+    }
 }

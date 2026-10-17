@@ -20,21 +20,19 @@ class GameWorldTest {
         val mounted = probe.vehicle.last()
         assertTrue(mounted.riding)
         assertEquals(0, mounted.hits)
-        assertEquals(10, mounted.seconds)
-
+        val duration = GameConfig.VEHICLE_DURATION_MS
+        fun seconds(ms: Long) = kotlin.math.ceil(ms / 1000.0).toInt()
+        assertEquals(seconds(duration), mounted.seconds)
+        val step = minOf(1_000L, duration - 1L).coerceAtLeast(0L)
+        world.update(step)
+        assertTrue(world.player.riding)
+        assertEquals(seconds(duration - step), probe.vehicle.last().seconds)
+        world.update(duration - step - 1L)
+        assertTrue(world.player.riding)
+        assertEquals(1, probe.vehicle.last().seconds)
         probe.vehicle.clear()
-        world.update(1_000L)
-        assertTrue(
-            "骑上之后每过 1 秒，HUD 上的剩余秒数都要减 1",
-            probe.vehicle.any { it.riding && it.seconds == 9 },
-        )
-
-        probe.vehicle.clear()
-        world.update(9_000L)
-        assertTrue(
-            "时间走完后 HUD 应回到未骑乘，不能一直停在刚骑上的那一行",
-            probe.vehicle.any { !it.riding },
-        )
+        world.update(1L)
+        assertTrue(probe.vehicle.any { !it.riding && it.seconds == 0 })
         assertFalse(world.player.riding)
     }
 
@@ -139,7 +137,7 @@ class GameWorldTest {
     /** 把掉落物直接放到玩家身上，这一帧的位移仍会和判定框相交。 */
     private fun dropOnPlayer(world: GameWorld, kind: ItemKind) {
         val size = GameConfig.ITEM_SIZE * world.viewW
-        val cy = world.groundY - world.player.sizePx / 2f
+        val cy = world.player.displayCenterY(world.groundY, world.gameTimeMs, world.viewH)
         world.items.add(FallingItem(kind, size, 1f, world.player.x, cy))
     }
 }
