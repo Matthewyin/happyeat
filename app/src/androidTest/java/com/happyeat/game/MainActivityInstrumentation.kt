@@ -14,6 +14,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import com.happyeat.game.config.GameConfig
+import com.happyeat.game.config.PolishTestConfig
 import com.happyeat.game.data.Prefs
 import com.happyeat.game.data.AppDatabase
 import com.happyeat.game.game.*
@@ -59,6 +60,11 @@ class MainActivityInstrumentation : Instrumentation() {
                 putString("stream", "BACKUP applicationLocales='$oldLocale' resourceLocales='$oldResourceLocales'\n")
             })
             if (!qaOnly) {
+            test("音频原生播放器切轨与完整循环") { nativeAudio() }
+            test("优化视觉场景") { polishScenes() }
+            test("操作区相对移动与多指") { controlsPointers() }
+            test("操作区取消与生命周期") { controlsCancellation() }
+            test("操作区布局与持久化") { controlsLayout() }
             test("语言重建保留完整世界及设置来源") { languageRetention() }
             test("菜单设置连续切换语言") { menuLanguages() }
             test("死亡排队与设置竞争及排行榜重开") { deathAndPages() }
@@ -72,7 +78,7 @@ class MainActivityInstrumentation : Instrumentation() {
             test("正常入口教学快速暂停与结算背景") { normalEntryBackgroundFrames() }
             test("用户名保存校验取消重建历史记录及暂停入口") { usernameEditing() }
             }
-            if (captureQa && groupFilter != "用户名") captureScreens()
+            if (captureQa && groupFilter != "用户名" && groupFilter != "操作区" && groupFilter != "优化" && groupFilter != "音频") captureScreens()
         } catch (t: Throwable) {
             failure = t
         } finally {
@@ -103,7 +109,7 @@ class MainActivityInstrumentation : Instrumentation() {
             }
         }
         finish(if (failure == null) Activity.RESULT_OK else Activity.RESULT_CANCELED, Bundle().apply {
-            putString("stream", (if (qaOnly) "仅截图采集，未运行测试\n" else if (groupFilter.isEmpty()) "通过 $passed/12 项\n" else "过滤组 '$groupFilter'：通过 $passed 项\n") +
+            putString("stream", (if (qaOnly) "仅截图采集，未运行测试\n" else if (groupFilter.isEmpty()) "通过 $passed 项\n" else "过滤组 '$groupFilter'：通过 $passed 项\n") +
                 "BACKUP applicationLocales=${oldLocale?.let { "'$it'" } ?: "未获取"}\n" +
                 "RESTORED applicationLocales=${restoredLocale?.let { "'$it'" } ?: "未确认"}\n" +
                 (failure?.stackTraceToString() ?: "全部通过"))
@@ -807,7 +813,7 @@ class MainActivityInstrumentation : Instrumentation() {
         SystemClock.sleep(200)
         val image = checkNotNull(uiAutomation.takeScreenshot())
         val folder = java.io.File(targetContext.getExternalFilesDir(null),
-            if (groupFilter == "用户名") "qa-username" else "qa-b").apply { mkdirs() }
+            if (groupFilter == "优化") "qa-polish" else if (groupFilter == "操作区") "qa-controls" else if (groupFilter == "用户名") "qa-username" else "qa-b").apply { mkdirs() }
         java.io.File(folder, "$name.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
         image.recycle()
     }
@@ -1177,6 +1183,322 @@ class MainActivityInstrumentation : Instrumentation() {
         }
     }
 
+    private fun controls(): ControlsBar = field(activity, "controlsBar")
+
+    private fun inputGame() {
+        main { invoke(activity, "restartGame") }
+        await { controls().isEnabled && view().width > 0 }
+        main {
+            // 只停止计时循环，保留正式动作门控；时间由测试在世界锁内推进。
+            invoke(view(), "stopLoop")
+            synchronized(world()) { world().spawnEnabled = false }
+        }
+    }
+
+    private fun controlArea(jump: Boolean): View = descendants(controls()).first {
+        it.contentDescription?.toString() == activity.getString(if (jump) R.string.controls_jump else R.string.controls_move)
+    }
+
+    private data class Finger(val id: Int, val x: Float, val y: Float)
+
+    private fun finger(id: Int, target: View): Finger {
+        val at = IntArray(2).also { target.getLocationOnScreen(it) }
+        val origin = IntArray(2).also { activity.window.decorView.getLocationOnScreen(it) }
+        return Finger(id, at[0] - origin[0] + target.width / 2f, at[1] - origin[1] + target.height / 2f)
+    }
+
+    private var gestureStart = 0L
+    private fun dispatch(action: Int, vararg fingers: Finger, index: Int = 0) {
+        val now = SystemClock.uptimeMillis()
+        if (action == android.view.MotionEvent.ACTION_DOWN) gestureStart = now
+        val props = fingers.map { f -> android.view.MotionEvent.PointerProperties().apply {
+            id = f.id; toolType = android.view.MotionEvent.TOOL_TYPE_FINGER
+        } }.toTypedArray()
+        val coords = fingers.map { f -> android.view.MotionEvent.PointerCoords().apply {
+            x = f.x; y = f.y; pressure = 1f; size = 1f
+        } }.toTypedArray()
+        val event = android.view.MotionEvent.obtain(gestureStart, now,
+            action or (index shl android.view.MotionEvent.ACTION_POINTER_INDEX_SHIFT), fingers.size,
+            props, coords, 0, 0, 1f, 1f, 0, 0, android.view.InputDevice.SOURCE_TOUCHSCREEN, 0)
+        try { activity.dispatchTouchEvent(event) } finally { event.recycle() }
+    }
+
+    private fun tickJump() = synchronized(world()) { world().update(GameConfig.JUMP_AIRTIME_MS + 1) }
+    private fun airborne() = world().player.isAirborne(world().gameTimeMs)
+    private fun near(actual: Float, expected: Float) { check(kotlin.math.abs(actual - expected) < 0.1f) { "$actual != $expected" } }
+
+    private fun controlsPointers() {
+        inputGame()
+        main {
+            controls().setJumpOnLeft(false)
+        }
+        waitForIdleSync()
+        main {
+            val move = finger(7, controlArea(false))
+            val jump = finger(19, controlArea(true))
+            val start = world().player.x
+            dispatch(android.view.MotionEvent.ACTION_DOWN, move)
+            near(world().player.x, start)
+            var moved = move.copy(x = move.x + 20)
+            dispatch(android.view.MotionEvent.ACTION_MOVE, moved)
+            near(world().player.x, start + 20)
+            dispatch(android.view.MotionEvent.ACTION_POINTER_DOWN, moved, jump, index = 1)
+            check(airborne())
+            moved = moved.copy(x = moved.x + 20)
+            dispatch(android.view.MotionEvent.ACTION_MOVE, moved, jump)
+            near(world().player.x, start + 40)
+            // 抬起 index 0 后，跳跃触点变为 index 0，保持按住不连跳。
+            dispatch(android.view.MotionEvent.ACTION_POINTER_UP, moved, jump)
+            tickJump()
+            dispatch(android.view.MotionEvent.ACTION_MOVE, jump)
+            check(!airborne())
+            dispatch(android.view.MotionEvent.ACTION_UP, jump)
+            val stopped = world().player.x
+            tickJump()
+            near(world().player.x, stopped)
+            // 相反按下顺序，跳跃主指释放后移动仍跟踪其独立 ID。
+            dispatch(android.view.MotionEvent.ACTION_DOWN, jump)
+            dispatch(android.view.MotionEvent.ACTION_POINTER_DOWN, jump, move, index = 1)
+            dispatch(android.view.MotionEvent.ACTION_POINTER_UP, jump, move)
+            dispatch(android.view.MotionEvent.ACTION_MOVE, move.copy(x = move.x - 20))
+            near(world().player.x, stopped - 20)
+            dispatch(android.view.MotionEvent.ACTION_UP, move.copy(x = move.x - 20))
+            tickJump()
+            // 两个区域均覆盖 A/B/C：B 不抢占，A 抬起后 B 不接管，新按下 C 可接管。
+            for (isJump in listOf(false, true)) {
+                val a = finger(3, controlArea(isJump))
+                val b = a.copy(id = 11, x = a.x + 2)
+                val c = a.copy(id = 25, x = a.x - 2)
+                dispatch(android.view.MotionEvent.ACTION_DOWN, a)
+                val before = world().player.x
+                dispatch(android.view.MotionEvent.ACTION_POINTER_DOWN, a, b, index = 1)
+                tickJump()
+                dispatch(android.view.MotionEvent.ACTION_MOVE, a, b.copy(x = b.x + 30))
+                near(world().player.x, before)
+                check(!airborne())
+                dispatch(android.view.MotionEvent.ACTION_POINTER_UP, a, b)
+                dispatch(android.view.MotionEvent.ACTION_MOVE, b.copy(x = b.x + 40))
+                near(world().player.x, before)
+                check(!airborne())
+                dispatch(android.view.MotionEvent.ACTION_POINTER_DOWN, b, c, index = 1)
+                if (isJump) check(airborne())
+                dispatch(android.view.MotionEvent.ACTION_POINTER_UP, b, c)
+                dispatch(android.view.MotionEvent.ACTION_MOVE, c.copy(x = c.x + 15))
+                near(world().player.x, before + if (isJump) 0 else 15)
+                dispatch(android.view.MotionEvent.ACTION_UP, c.copy(x = c.x + 15))
+                tickJump()
+            }
+            // 跳跃指跨入移动区后继续滑动，仍只属于跳跃区。
+            val beforeCross = world().player.x
+            dispatch(android.view.MotionEvent.ACTION_DOWN, jump)
+            check(airborne())
+            val crossed = jump.copy(x = move.x, y = move.y)
+            dispatch(android.view.MotionEvent.ACTION_MOVE, crossed)
+            dispatch(android.view.MotionEvent.ACTION_MOVE, crossed.copy(x = crossed.x - 20))
+            near(world().player.x, beforeCross)
+            dispatch(android.view.MotionEvent.ACTION_UP, crossed)
+            tickJump()
+            // 跨区拖动只移动；顶到边界后反向立即生效。
+            dispatch(android.view.MotionEvent.ACTION_DOWN, move)
+            val far = move.copy(x = view().width * 3f)
+            dispatch(android.view.MotionEvent.ACTION_MOVE, far)
+            check(!airborne())
+            val edge = world().player.x
+            dispatch(android.view.MotionEvent.ACTION_MOVE, far.copy(x = far.x - 10))
+            near(world().player.x, edge - 10)
+            dispatch(android.view.MotionEvent.ACTION_UP, far)
+            val screen = finger(6, view())
+            val x = world().player.x
+            dispatch(android.view.MotionEvent.ACTION_DOWN, screen)
+            dispatch(android.view.MotionEvent.ACTION_MOVE, screen.copy(x = screen.x - 80))
+            dispatch(android.view.MotionEvent.ACTION_UP, screen)
+            near(world().player.x, x)
+            check(!airborne())
+        }
+    }
+
+    private fun controlsCancellation() {
+        inputGame()
+        main {
+            val move = finger(7, controlArea(false))
+            val jump = finger(19, controlArea(true))
+            val beforeCancel = world().player.x
+            dispatch(android.view.MotionEvent.ACTION_DOWN, move)
+            dispatch(android.view.MotionEvent.ACTION_CANCEL, move)
+            near(world().player.x, beforeCancel)
+            dispatch(android.view.MotionEvent.ACTION_MOVE, move.copy(x = move.x + 20))
+            near(world().player.x, beforeCancel)
+            check(!controlArea(false).isPressed && !airborne())
+            dispatch(android.view.MotionEvent.ACTION_DOWN, jump)
+            check(airborne() && controlArea(true).isPressed)
+            tickJump()
+            check(!airborne())
+            dispatch(android.view.MotionEvent.ACTION_CANCEL, jump)
+            check(!airborne() && !controlArea(true).isPressed)
+            for (exit in listOf("pause", "focus", "background", "restart", "swap")) {
+                dispatch(android.view.MotionEvent.ACTION_DOWN, move)
+                dispatch(android.view.MotionEvent.ACTION_POINTER_DOWN, move, jump, index = 1)
+                when (exit) {
+                    "pause" -> { invoke(activity, "pauseGame"); invoke(activity, "resumeGame") }
+                    "focus" -> { activity.onWindowFocusChanged(false); activity.onWindowFocusChanged(true) }
+                    "background" -> { callActivityOnPause(activity); callActivityOnResume(activity) }
+                    "restart" -> invoke(activity, "restartGame")
+                    "swap" -> controls().setJumpOnLeft(!Prefs.jumpOnLeft(activity))
+                }
+                invoke(view(), "stopLoop")
+                tickJump()
+                val x = world().player.x
+                dispatch(android.view.MotionEvent.ACTION_MOVE, move.copy(x = move.x + 40), jump)
+                near(world().player.x, x)
+                check(!airborne() && !controlArea(false).isPressed && !controlArea(true).isPressed)
+                dispatch(android.view.MotionEvent.ACTION_CANCEL, move, jump)
+            }
+            // 教学的关闭手势归覆盖层，不传给背后的跳跃区。
+            invoke(activity, "backToMenu")
+            activity.getSharedPreferences("happyeat_prefs", 0).edit().putBoolean("tutorial_shown", false).commit()
+            invoke(activity, "startFromMenu")
+            check(visible("tutorialPanel"))
+        }
+        // GONE 首次显示需要布局；UP 的点击回调可能排入主线程队列。
+        await {
+            val tutorial = panel("tutorialPanel")
+            tutorial.isShown && tutorial.isLaidOut && !tutorial.isLayoutRequested &&
+                tutorial.width > 0 && tutorial.height > 0
+        }
+        waitForIdleSync()
+        main {
+            val tap = finger(4, controlArea(true))
+            dispatch(android.view.MotionEvent.ACTION_DOWN, tap)
+            dispatch(android.view.MotionEvent.ACTION_UP, tap)
+        }
+        waitForIdleSync()
+        main {
+            invoke(view(), "stopLoop")
+            check(!visible("tutorialPanel")) { "教学关闭回调尚未生效" }
+            check(!airborne()) { "教学关闭手势触发了跳跃" }
+            // 死亡后、结束面板尚未收到通知时，世界门控已拒绝输入。
+            synchronized(world()) { set(world(), "gameOver", true) }
+            val x = world().player.x
+            val freshMove = finger(5, controlArea(false))
+            val freshJump = finger(22, controlArea(true))
+            dispatch(android.view.MotionEvent.ACTION_DOWN, freshMove)
+            dispatch(android.view.MotionEvent.ACTION_POINTER_DOWN, freshMove, freshJump, index = 1)
+            dispatch(android.view.MotionEvent.ACTION_MOVE, freshMove.copy(x = freshMove.x - 40), freshJump)
+            near(world().player.x, x)
+            check(!airborne())
+            dispatch(android.view.MotionEvent.ACTION_CANCEL, freshMove, freshJump)
+            synchronized(world()) { set(world(), "gameOver", false) }
+        }
+    }
+
+    private fun controlsLayout() {
+        inputGame()
+        lateinit var retained: GameWorld
+        lateinit var state: List<Any?>
+        var size = 0 to 0
+        var surfaceSize = 0 to 0
+        await { view().holder.surface.isValid && view().holder.surfaceFrame.width() > 0 }
+        main {
+            retained = world()
+            state = snapshot(retained)
+            size = view().width to view().height
+            surfaceSize = view().holder.surfaceFrame.let { it.width() to it.height() }
+            check(surfaceSize == size)
+            val gameAt = IntArray(2).also { view().getLocationOnScreen(it) }
+            val barAt = IntArray(2).also { controls().getLocationOnScreen(it) }
+            check(gameAt[1] + view().height <= barAt[1])
+            check(world().groundY <= world().viewH)
+            check(world().player.displayCenterY(world().groundY, world().gameTimeMs, world().viewH) < world().viewH)
+            invoke(activity, "pauseGame")
+        }
+        fun unchanged() = main {
+            check(world() === retained && snapshot(world()) == state)
+            check((view().width to view().height) == size)
+            check(view().holder.surface.isValid)
+            val actualSurface = view().holder.surfaceFrame.let { it.width() to it.height() }
+            check(actualSurface == surfaceSize) { "Surface 尺寸改变：$surfaceSize -> $actualSurface" }
+        }
+        waitForIdleSync()
+        unchanged()
+        val bars = androidx.core.view.WindowInsetsCompat.Type.systemBars()
+        lateinit var controller: androidx.core.view.WindowInsetsControllerCompat
+        var originalBehavior = 0
+        main {
+            controller = androidx.core.view.WindowInsetsControllerCompat(activity.window, activity.window.decorView)
+            originalBehavior = controller.systemBarsBehavior
+            // 测试期间允许显式 show，避免沉浸策略自动隐藏干扰可见性等待。
+            controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+        }
+        fun awaitBars(visible: Boolean) {
+            await {
+                val insets = androidx.core.view.ViewCompat.getRootWindowInsets(activity.window.decorView)
+                insets != null &&
+                    insets.isVisible(androidx.core.view.WindowInsetsCompat.Type.statusBars()) == visible &&
+                    insets.isVisible(androidx.core.view.WindowInsetsCompat.Type.navigationBars()) == visible &&
+                    !activity.window.decorView.isLayoutRequested
+            }
+            waitForIdleSync()
+            unchanged()
+            sendStatus(0, Bundle().apply {
+                putString("stream", "操作区系统栏 visible=$visible，View=$size，Surface=$surfaceSize，世界快照不变\n")
+            })
+        }
+        try {
+            main { controller.hide(bars) }
+            awaitBars(false)
+            main { controller.show(bars) }
+            awaitBars(true)
+            main { controller.hide(bars) }
+            awaitBars(false)
+        } finally {
+            main {
+                controller.systemBarsBehavior = originalBehavior
+                controller.hide(bars)
+            }
+        }
+        for (tag in listOf("zh", "en")) {
+            main { click("pausePanel", R.string.settings) }
+            if (activity.resources.configuration.locales[0].language != tag) changeLanguage(tag)
+            waitForIdleSync()
+            unchanged()
+            if (captureQa) screenshot("$tag-settings-top")
+            for (left in listOf(true, false)) {
+                main { click("settingsPage", if (left) R.string.jump_left else R.string.jump_right) }
+                waitForIdleSync()
+                main {
+                    check(Prefs.jumpOnLeft(activity) == left)
+                    check((controlArea(true).left < controlArea(false).left) == left)
+                    val rows = descendants(panel("settingsPage"))
+                    check(rows.first { it.contentDescription?.toString() == activity.getString(if (left) R.string.jump_left else R.string.jump_right) }.isSelected)
+                }
+                unchanged()
+            }
+            main { click("settingsPage", R.string.jump_left) }
+            val monitor = addMonitor(MainActivity::class.java.name, null, false)
+            try {
+                main { activity.recreate() }
+                activity = checkNotNull(waitForMonitorWithTimeout(monitor, 10_000L)) as MainActivity
+            } finally { removeMonitor(monitor) }
+            await { view().width > 0 && controls().width > 0 }
+            waitForIdleSync()
+            unchanged()
+            main { check(Prefs.jumpOnLeft(activity) && controlArea(true).left < controlArea(false).left) }
+            if (captureQa) captureScroll("settingsPage", "$tag-settings")
+            main { back("settingsPage"); click("pausePanel", R.string.menu_help) }
+            waitForIdleSync()
+            unchanged()
+            if (captureQa) captureScroll("helpPage", "$tag-help")
+            main { back("helpPage") }
+            unchanged()
+            if (captureQa) screenshot("$tag-pause")
+        }
+        main { invoke(activity, "resumeGame"); invoke(view(), "stopLoop") }
+        if (captureQa) screenshot("game-jump-left")
+        main { controls().setJumpOnLeft(false) }
+        waitForIdleSync()
+        if (captureQa) screenshot("game-jump-right")
+    }
+
     private fun captureScreens() {
         for (tag in listOf("zh", "en")) {
             main { invoke(activity, "backToMenu"); click("menuPage", R.string.settings) }
@@ -1292,6 +1614,110 @@ class MainActivityInstrumentation : Instrumentation() {
             }
             screenshot("$tag-sprites-jumping")
         }
+    }
+
+    private fun nativeAudio() {
+        fun player(): android.media.MediaPlayer? = field(SoundManager, "bgmPlayer")
+        fun silent() { check(player() == null); check(field<BgmTrack>(SoundManager, "bgmTrack") == BgmTrack.NONE) }
+        main { invoke(activity, "backToMenu"); SoundManager.startBgm(BgmTrack.MENU) }
+        var first: android.media.MediaPlayer? = null
+        main { first = checkNotNull(player()); check(first!!.isPlaying) }
+        await { checkNotNull(player()).currentPosition > PolishTestConfig.AUDIO_PROGRESS_MS }
+        main {
+            val position = first!!.currentPosition
+            SoundManager.startBgm(BgmTrack.MENU)
+            check(player() === first)
+            check(first!!.currentPosition >= position)
+            SoundManager.startBgm(BgmTrack.GAME)
+            check(player() !== first && checkNotNull(player()).isPlaying)
+            for (track in listOf(BgmTrack.MENU, BgmTrack.GAME, BgmTrack.MENU, BgmTrack.GAME)) {
+                SoundManager.startBgm(track)
+                check(field<BgmTrack>(SoundManager, "bgmTrack") == track)
+            }
+            SoundManager.play(SoundEvent.CATCH)
+        }
+        var duration = 0
+        main { duration = checkNotNull(player()).duration }
+        val deadline = SystemClock.uptimeMillis() + duration * PolishTestConfig.LOOP_TIMEOUT_FACTOR
+        var previous = 0
+        var wraps = 0
+        var maximum = 0
+        while (SystemClock.uptimeMillis() < deadline && wraps < PolishTestConfig.LOOP_COUNT) {
+            main {
+                val current = checkNotNull(player())
+                check(current.isPlaying)
+                val position = current.currentPosition
+                if (position + PolishTestConfig.AUDIO_PROGRESS_MS < previous) wraps++
+                maximum = maxOf(maximum, position)
+                previous = position
+            }
+            SystemClock.sleep(PolishTestConfig.AUDIO_POLL_MS)
+        }
+        check(wraps >= PolishTestConfig.LOOP_COUNT)
+        check(maximum > duration - PolishTestConfig.END_TOLERANCE_MS)
+        main {
+            SoundManager.startBgm(BgmTrack.NONE); silent()
+            SoundManager.startBgm(BgmTrack.GAME)
+            SoundManager.stopBgm(); silent()
+            SoundManager.release(); SoundManager.release(); silent()
+            SoundManager.init(activity)
+            SoundManager.startBgm(BgmTrack.MENU)
+            check(checkNotNull(player()).isPlaying)
+            callActivityOnPause(activity)
+            callActivityOnStop(activity)
+            silent()
+            callActivityOnRestart(activity)
+            callActivityOnStart(activity)
+            callActivityOnResume(activity)
+            check(checkNotNull(player()).isPlaying)
+        }
+        sendStatus(0, Bundle().apply { putString("stream", "GAME duration=$duration positionMax=$maximum wraps=$wraps；SFX 已发起，听感待人工验收\n") })
+    }
+
+    private fun polishScenes() {
+        inputGame()
+        main {
+            view().pauseGame()
+            val w = world()
+            synchronized(w) {
+                w.items.clear(); w.beasts.clear()
+                w.player.x = w.viewW * PolishTestConfig.PLAYER_X
+                ItemKind.entries.forEachIndexed { index, kind ->
+                    w.items.add(FallingItem(kind, GameConfig.ITEM_SIZE * w.viewW, 0f,
+                        w.viewW * (index % PolishTestConfig.COLUMNS + 1) / (PolishTestConfig.COLUMNS + 1),
+                        w.viewH * (index / PolishTestConfig.COLUMNS + 1) / PolishTestConfig.ROWS_DIVISOR))
+                }
+                BeastKind.entries.forEachIndexed { index, kind ->
+                    w.beasts.add(Beast(kind, GameConfig.BEAST_SIZE * w.viewW, 0f,
+                        w.viewW * (index + 1) / PolishTestConfig.BEAST_DIVISOR, 1))
+                }
+            }
+        }
+        for (phase in BackgroundSelection.scenes.indices.flatMap { scene ->
+            BackgroundSelection.scenes[scene].indices.map { scene * BackgroundSelection.scenes[scene].size + it }
+        }) {
+            main {
+                synchronized(world()) { set(world(), "gameTimeMs", phase * GameConfig.BG_PHASE_MS) }
+                view().bgMode = BgMode.AUTO
+            }
+            if (captureQa) screenshot("polish-background-$phase")
+        }
+        for (vehicle in listOf(ItemKind.CAR, ItemKind.TANK)) {
+            main {
+                synchronized(world()) { world().player.mount(vehicle, world().gameTimeMs) }
+                view().bgMode = BgMode.DAY
+            }
+            if (captureQa) screenshot("polish-riding-$vehicle")
+        }
+        for (left in listOf(false, true)) {
+            main { controls().setJumpOnLeft(left); controls().isEnabled = true }
+            if (captureQa) screenshot("polish-controls-$left-normal")
+            main { controlArea(true).isPressed = true; controlArea(false).isPressed = true }
+            if (captureQa) screenshot("polish-controls-$left-pressed")
+            main { controls().isEnabled = false; check(!controlArea(true).isPressed && !controlArea(false).isPressed) }
+            if (captureQa) screenshot("polish-controls-$left-disabled")
+        }
+        main { controls().isEnabled = true; controls().setJumpOnLeft(false) }
     }
 
     private fun drawingGeometry() {

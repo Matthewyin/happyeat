@@ -37,16 +37,14 @@ object GameConfig {
     const val RIDING_PLAYER_OFFSET = 0.2f
     const val RIDING_PLAYER_FALLBACK_SCALE = 0.8f
 
-    const val PLAYER_SIZE = 0.11f
-    const val ITEM_SIZE = 0.075f
+    const val PLAYER_SIZE = 0.13f
+    const val ITEM_SIZE = 0.09f
     const val BEAST_SIZE = 0.12f
 
     const val HITBOX_SCALE = 0.75f
 
     const val JUMP_HEIGHT = 0.20f
     const val JUMP_AIRTIME_MS = 640L
-    const val TAP_MAX_MS = 220L
-    const val TAP_SLOP_DP = 12f
 
     // 由最终六张素材的实际草地上沿核验，物理地面保持不变。
     val BG_GROUND_FRACTIONS: Map<String, Float> = mapOf(
@@ -61,7 +59,25 @@ object GameConfig {
 
     const val BG_PHASE_MS = 60_000L
 
+    object Audio {
+        const val BGM_VOLUME = 0.45f
+        const val SFX_VOLUME = 0.9f
+        const val MAX_SFX_STREAMS = 5
+    }
+
     object Ui {
+        const val CONTROL_INSET = 4f
+        const val CONTROL_DEPTH = 5f
+        const val CONTROL_HIGHLIGHT = 2f
+        const val CONTROL_HIGHLIGHT_INSET = 12f
+        const val CONTROL_PRESSED_MINT = 0xFF78CBA6.toInt()
+        const val CONTROL_PRESSED_GOLD = 0xFFF3BC36.toInt()
+        const val CONTROL_DISABLED = 0xFFDDE2DA.toInt()
+        const val CONTROL_SHADOW = 0xFF72988E.toInt()
+        const val CONTROL_GOLD_SHADOW = 0xFFBA883B.toInt()
+
+        const val CONTROLS_HEIGHT = 112
+        const val JUMP_AREA_WIDTH = 104
         const val INK = 0xFF062B45.toInt()
         const val CREAM_CARD = 0xFFFFF8E7.toInt()
         const val BLUE = 0xFF176DC5.toInt()

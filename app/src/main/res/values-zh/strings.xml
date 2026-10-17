@@ -36,15 +36,15 @@
     <string name="menu_help">帮助</string>
     <string name="back_to_menu">回主菜单</string>
     <string name="help_title">玩法说明</string>
-    <string name="help_bean">豆子：+1 分——接住它（绿圈=能吃）</string>
+    <string name="help_bean">豆子：+1 分——接住它</string>
     <string name="help_meat">肉：+5 分</string>
     <string name="help_pie">馅饼：+10 分</string>
-    <string name="help_vehicle">车/坦克：骑乘挡伤害，10 秒或撞 3 次报废（黄圈）</string>
-    <string name="help_hazard">石头/炸弹/刀：碰到掉一条命——快躲！（红圈）</string>
-    <string name="help_beast">虎/狮/狼贴地冲过来——快速点按跳跃躲过</string>
-    <string name="help_controls">按住拖动移动 • 快速点按跳跃</string>
-    <string name="tutorial_drag">按住拖动移动</string>
-    <string name="tutorial_jump">快速点按跳跃</string>
+    <string name="help_vehicle">车/坦克：骑乘挡伤害，10 秒或撞 3 次报废</string>
+    <string name="help_hazard">石头/炸弹/刀：碰到掉一条命——快躲！</string>
+    <string name="help_beast">虎/狮/狼贴地冲过来——按下跳跃按钮躲过</string>
+    <string name="help_controls">在底部移动区相对滑动，按下跳跃按钮立即跳起。可双指同时操作，设置中可交换两区位置。</string>
+    <string name="tutorial_drag">在底部移动区滑动移动</string>
+    <string name="tutorial_jump">按下跳跃按钮 · 可双指同时操作</string>
     <string name="tutorial_hint">轻触任意处开始</string>
     <string name="entry_language">语言 / Language</string>
     <string name="entry_background">背景</string>
@@ -55,8 +55,13 @@
     <string name="exit_game">退出游戏</string>
     <string name="exit_confirm">确定要退出 HappyEat 吗？</string>
     <string name="exit_message">进度和最高分都保存在本机。</string>
-    <string name="help_air_move">点按跳起后，再按住屏幕向左或向右拖动，就能在空中向对应方向移动。</string>
+    <string name="help_air_move">空中仍可在移动区左右滑动。按住跳跃按钮不会连续跳跃。</string>
     <string name="help_edges">尽量不要贴着屏幕两侧停留，以免虎、狮、狼从边缘冲出来时来不及躲避。</string>
     <string name="back">返回</string>
     <string name="pause_action">暂停</string>
+    <string name="controls_move">滑动移动</string>
+    <string name="controls_jump">跳跃</string>
+    <string name="jump_position">跳跃按钮位置</string>
+    <string name="jump_left">左侧</string>
+    <string name="jump_right">右侧</string>
 </resources>

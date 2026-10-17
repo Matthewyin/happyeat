@@ -23,7 +23,7 @@ The Play Store page will appear — install like any app.
 Please **keep the app installed for 14 days** and open it now and then. Google counts this to let my game publish — dropping it early hurts the countdown.
 
 **4. Play & report (fun part)**
-Drag to catch food, quick-tap to JUMP over beasts, grab a car to go invincible.
+Slide in the bottom move area to catch food and press JUMP to dodge beasts. Use two fingers together; swap the controls in Settings. Grab a car for temporary protection.
 Send me a screenshot of your best score from the in-game leaderboard — and any feedback is gold.
 
 Thanks a million! 🙏

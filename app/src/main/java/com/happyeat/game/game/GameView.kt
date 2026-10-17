@@ -86,13 +86,7 @@ class GameView internal constructor(context: Context, private val session: GameS
 
     private val bgPaint = Paint()
     private val fallbackPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val dstRect = RectF()
-    private var lastTouchX = 0f
-    private var downX = 0f
-    private var downY = 0f
-    private var downAtMs = 0L
-
     init {
         synchronized(world) { world.listener = worldListener }
         holder.addCallback(this)
@@ -220,32 +214,22 @@ class GameView internal constructor(context: Context, private val session: GameS
         }
     }
 
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (released || pausedByUi || inMenu) return true
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                lastTouchX = event.x
-                downX = event.x
-                downY = event.y
-                downAtMs = android.os.SystemClock.elapsedRealtime()
-            }
-            MotionEvent.ACTION_MOVE -> {
-                val dx = event.x - lastTouchX
-                lastTouchX = event.x
-                synchronized(world) { if (!released && !pausedByUi) world.dragPlayerBy(dx) }
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                val dt = android.os.SystemClock.elapsedRealtime() - downAtMs
-                val slop = GameConfig.TAP_SLOP_DP * resources.displayMetrics.density
-                val still = kotlin.math.abs(event.x - downX) < slop &&
-                    kotlin.math.abs(event.y - downY) < slop
-                if (dt < GameConfig.TAP_MAX_MS && still) {
-                    synchronized(world) { if (!released && !pausedByUi) world.jumpPlayer() }
-                    SoundManager.play(SoundEvent.JUMP)
-                }
+    override fun onTouchEvent(event: MotionEvent): Boolean = true
+
+    fun movePlayerBy(dx: Float) {
+        synchronized(world) {
+            if (!released && !pausedByUi && !inMenu && !world.gameOver) world.dragPlayerBy(dx)
+        }
+    }
+
+    fun jumpPlayer() {
+        synchronized(world) {
+            if (released || pausedByUi || inMenu || world.gameOver) return
+            if (!world.player.isAirborne(world.gameTimeMs)) {
+                world.jumpPlayer()
+                SoundManager.play(SoundEvent.JUMP)
             }
         }
-        return true
     }
 
     private fun startLoop() {
@@ -369,9 +353,6 @@ class GameView internal constructor(context: Context, private val session: GameS
             canvas.drawRect(0f, world.groundY, w, h, fallbackPaint)
         }
         for (item in world.items) {
-            ringPaint.color = RING_COLORS.getValue(item.kind)
-            ringPaint.strokeWidth = item.sizePx * 0.09f
-            canvas.drawCircle(item.x, item.y, item.sizePx * 0.62f, ringPaint)
             drawSprite(canvas, itemBmps[item.kind], item.x, item.y, item.sizePx, FALLBACK_COLORS.getValue(item.kind))
         }
         for (beast in world.beasts) {
@@ -446,16 +427,6 @@ class GameView internal constructor(context: Context, private val session: GameS
             BeastKind.TIGER to "tiger",
             BeastKind.LION to "lion",
             BeastKind.WOLF to "wolf",
-        )
-        private val RING_COLORS = mapOf(
-            ItemKind.BEAN to Color.rgb(76, 175, 80),
-            ItemKind.MEAT to Color.rgb(76, 175, 80),
-            ItemKind.PIE to Color.rgb(76, 175, 80),
-            ItemKind.ROCK to Color.rgb(244, 67, 54),
-            ItemKind.BOMB to Color.rgb(244, 67, 54),
-            ItemKind.KNIFE to Color.rgb(244, 67, 54),
-            ItemKind.CAR to Color.rgb(255, 193, 7),
-            ItemKind.TANK to Color.rgb(255, 193, 7),
         )
         private val FALLBACK_COLORS = mapOf(
             ItemKind.BEAN to Color.rgb(141, 189, 93),

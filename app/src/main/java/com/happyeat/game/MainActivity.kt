@@ -49,6 +49,9 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val dateFormat by lazy { DateFormat.getDateInstance(DateFormat.SHORT) }
 
+    private lateinit var controlsBar: com.happyeat.game.ui.ControlsBar
+    private var foreground = false
+    private var windowFocused = false
     private lateinit var gameView: GameView
     private lateinit var scoreText: TextView
     private lateinit var livesText: TextView
@@ -79,11 +82,25 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
         gameView.bgMode = parseBgMode(Prefs.backgroundMode(this))
 
         val root = FrameLayout(this)
-        root.addView(gameView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-        root.addView(
-            buildHud(),
-            FrameLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP),
-        )
+        val playfield = FrameLayout(this).apply {
+            addView(gameView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+            addView(buildHud(), FrameLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP))
+        }
+        controlsBar = com.happyeat.game.ui.ControlsBar(this, gameView::movePlayerBy, gameView::jumpPlayer)
+        controlsBar.setJumpOnLeft(Prefs.jumpOnLeft(this))
+        val gameLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(playfield, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+            addView(controlsBar, LinearLayout.LayoutParams(MATCH_PARENT, dp(GameConfig.Ui.CONTROLS_HEIGHT)))
+        }
+        root.addView(gameLayout, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        // 固定保留隐藏系统栏的安全区域，临时唤出系统栏不改变世界尺寸。
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(gameLayout) { _, insets ->
+            val safe = insets.getInsetsIgnoringVisibility(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            gameLayout.setPadding(safe.left, safe.top, safe.right, safe.bottom)
+            insets
+        }
         pausePanel = PausePanel(this)
         gameOverPanel = GameOverPanel(this)
         tutorialPanel = TutorialPanel(this)
@@ -138,6 +155,7 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
             }
             androidx.appcompat.app.AppCompatDelegate.setApplicationLocales(locales)
         }
+        settingsPage.onJumpSideSelected = { controlsBar.setJumpOnLeft(it) }
         settingsPage.onBackgroundSelected = { mode -> gameView.bgMode = mode }
         helpPage.onBack = back@{
             if (session.page != Page.HELP || finishIfDead()) return@back
@@ -183,6 +201,7 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
 
     override fun onResume() {
         super.onResume()
+        foreground = true
         hideSystemBars()
         val uiBlocked = pausedByUi || anyOverlayVisible() || anyPageVisible()
         if (!uiBlocked && Prefs.userName(this) != null) {
@@ -192,12 +211,15 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
     }
 
     override fun onPause() {
+        foreground = false
+        refreshControls()
         gameView.pauseGame()
         SoundManager.stopBgm()
         super.onPause()
     }
 
     override fun onDestroy() {
+        controlsBar.clearInput()
         gameView.release()
         scope.cancel()
         SoundManager.release()
@@ -238,6 +260,7 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
         SoundManager.stopBgm()
         val best = max(Prefs.bestScore(this), score)
         gameOverPanel.show(score, best)
+        refreshControls()
         if (session.settled) return
         session.settled = true
         Prefs.setBestScore(this, best)
@@ -318,6 +341,7 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
 
     /** BGM 状态机：页面=菜单曲；对局（含暂停/教学浮层）=游戏曲；Game Over=无 */
     private fun applyAudioState() {
+        refreshControls()
         val track = when {
             anyPageVisible() -> BgmTrack.MENU
             gameOverPanel.isVisibleNow() -> BgmTrack.NONE
@@ -334,6 +358,7 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
     }
 
     private fun hideAllUi() {
+        controlsBar.clearInput()
         hideAllPages()
         pausePanel.hide()
         gameOverPanel.hide()
@@ -458,6 +483,18 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
         gameOverPanel.hide()
         gameView.enterMenu()
         showMenuPage()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        windowFocused = hasFocus
+        if (::controlsBar.isInitialized) refreshControls()
+    }
+
+    private fun refreshControls() {
+        controlsBar.isEnabled = foreground && windowFocused && session.page == Page.GAME &&
+            !pausedByUi && !anyOverlayVisible() && !anyPageVisible() &&
+            synchronized(session.world) { !session.world.gameOver }
     }
 
     private fun hideSystemBars() {

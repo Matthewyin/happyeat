@@ -34,6 +34,13 @@ object Prefs {
             .edit().putString(KEY_BACKGROUND, mode).apply()
     }
 
+    fun jumpOnLeft(context: Context): Boolean =
+        context.getSharedPreferences(FILE, Context.MODE_PRIVATE).getBoolean("jump_on_left", false)
+
+    fun setJumpOnLeft(context: Context, left: Boolean) {
+        context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putBoolean("jump_on_left", left).apply()
+    }
+
     fun tutorialShown(context: Context): Boolean =
         context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
             .getBoolean(KEY_TUTORIAL_SHOWN, false)

@@ -3,6 +3,8 @@ package com.happyeat.game.game
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.SoundPool
+import android.media.MediaPlayer
+import com.happyeat.game.config.GameConfig
 import com.happyeat.game.R
 
 enum class SoundEvent { CATCH, HIT, MOUNT, CRUSH, JUMP, CLICK, GAMEOVER }
@@ -11,24 +13,22 @@ enum class SoundEvent { CATCH, HIT, MOUNT, CRUSH, JUMP, CLICK, GAMEOVER }
 enum class BgmTrack { NONE, MENU, GAME }
 
 object SoundManager {
-    private const val BGM_VOLUME = 0.45f
-    private const val SFX_VOLUME = 0.9f
+    private var appContext: Context? = null
+    private var bgmPlayer: MediaPlayer? = null
 
     private var pool: SoundPool? = null
     private val ids = HashMap<SoundEvent, Int>()
-    private var bgmMenuId = -1
-    private var bgmGameId = -1
-    private var bgmStream = 0
     private var bgmTrack = BgmTrack.NONE
 
     fun init(context: Context) {
         if (pool != null) return
+        appContext = context.applicationContext
         val attrs = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_GAME)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
         val newPool = SoundPool.Builder()
-            .setMaxStreams(5)
+            .setMaxStreams(GameConfig.Audio.MAX_SFX_STREAMS)
             .setAudioAttributes(attrs)
             .build()
         pool = newPool
@@ -39,14 +39,12 @@ object SoundManager {
         ids[SoundEvent.JUMP] = newPool.load(context, R.raw.sfx_jump, 1)
         ids[SoundEvent.CLICK] = newPool.load(context, R.raw.sfx_click, 1)
         ids[SoundEvent.GAMEOVER] = newPool.load(context, R.raw.sfx_gameover, 1)
-        bgmMenuId = newPool.load(context, R.raw.bgm_menu, 1)
-        bgmGameId = newPool.load(context, R.raw.bgm_loop, 1)
     }
 
     fun play(event: SoundEvent) {
         val p = pool ?: return
         val id = ids[event] ?: return
-        p.play(id, SFX_VOLUME, SFX_VOLUME, 1, 0, 1f)
+        p.play(id, GameConfig.Audio.SFX_VOLUME, GameConfig.Audio.SFX_VOLUME, 1, 0, 1f)
     }
 
     /** 切换/启动 BGM 轨道；相同轨道重复调用是无操作 */
@@ -55,27 +53,44 @@ object SoundManager {
             stopBgm()
             return
         }
-        val p = pool ?: return
-        if (track == bgmTrack && bgmStream != 0) return
-        if (bgmStream != 0) {
-            p.stop(bgmStream)
-            bgmStream = 0
+        val context = appContext ?: return
+        if (track == bgmTrack && bgmPlayer != null) return
+        stopBgm()
+        val player = MediaPlayer()
+        try {
+            player.setAudioAttributes(AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_GAME)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
+            val resource = if (track == BgmTrack.MENU) R.raw.bgm_menu else R.raw.bgm_loop
+            context.resources.openRawResourceFd(resource).use {
+                player.setDataSource(it.fileDescriptor, it.startOffset, it.length)
+            }
+            player.prepare()
+            player.isLooping = true
+            player.setVolume(GameConfig.Audio.BGM_VOLUME, GameConfig.Audio.BGM_VOLUME)
+            player.setOnErrorListener { failed, _, _ ->
+                if (bgmPlayer === failed) stopBgm()
+                true
+            }
+            bgmPlayer = player
+            bgmTrack = track
+            player.start()
+        } catch (_: java.io.IOException) {
+            player.release()
+            bgmPlayer = null
+            bgmTrack = BgmTrack.NONE
+        } catch (_: RuntimeException) {
+            player.release()
+            bgmPlayer = null
+            bgmTrack = BgmTrack.NONE
         }
-        val id = when (track) {
-            BgmTrack.MENU -> bgmMenuId
-            BgmTrack.GAME -> bgmGameId
-            BgmTrack.NONE -> return
-        }
-        if (id > 0) bgmStream = p.play(id, BGM_VOLUME, BGM_VOLUME, 0, -1, 1f)
-        bgmTrack = track
     }
 
     fun stopBgm() {
-        if (bgmStream != 0) {
-            pool?.stop(bgmStream)
-            bgmStream = 0
-        }
+        val player = bgmPlayer
+        bgmPlayer = null
         bgmTrack = BgmTrack.NONE
+        player?.release()
     }
 
     fun release() {
@@ -83,5 +98,6 @@ object SoundManager {
         pool?.release()
         pool = null
         ids.clear()
+        appContext = null
     }
 }

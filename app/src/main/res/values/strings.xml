@@ -36,15 +36,15 @@
     <string name="menu_help">Help</string>
     <string name="back_to_menu">Main Menu</string>
     <string name="help_title">How to Play</string>
-    <string name="help_bean">Bean: +1 point — catch it (green ring = good)</string>
+    <string name="help_bean">Bean: +1 point — catch it</string>
     <string name="help_meat">Meat: +5 points</string>
     <string name="help_pie">Pie: +10 points</string>
-    <string name="help_vehicle">Car / Tank: ride it, blocks damage for 10s or 3 hits (amber ring)</string>
-    <string name="help_hazard">Rock / Bomb / Knife: lose a life on contact — dodge! (red ring)</string>
-    <string name="help_beast">Tigers, lions &amp; wolves charge along the ground — tap quickly to jump over</string>
-    <string name="help_controls">Drag to move • Quick tap to jump</string>
-    <string name="tutorial_drag">Hold &amp; drag to move</string>
-    <string name="tutorial_jump">Quick tap to jump</string>
+    <string name="help_vehicle">Car / Tank: ride it, blocks damage for 10s or 3 hits</string>
+    <string name="help_hazard">Rock / Bomb / Knife: lose a life on contact — dodge!</string>
+    <string name="help_beast">Tigers, lions &amp; wolves charge along the ground — press Jump to dodge</string>
+    <string name="help_controls">Slide in the bottom move area for relative movement. Press Jump to jump immediately. Use two fingers together; switch sides in Settings.</string>
+    <string name="tutorial_drag">Slide in the bottom move area</string>
+    <string name="tutorial_jump">Press Jump • Use both areas together</string>
     <string name="tutorial_hint">Touch anywhere to start</string>
     <string name="entry_language">Language / 语言</string>
     <string name="entry_background">Background</string>
@@ -55,8 +55,13 @@
     <string name="exit_game">Exit Game</string>
     <string name="exit_confirm">Quit HappyEat?</string>
     <string name="exit_message">Your progress and best score are saved on this device.</string>
-    <string name="help_air_move">Tap to jump, then touch and drag left or right to move in that direction while airborne.</string>
+    <string name="help_air_move">Keep sliding in the move area while airborne. Holding Jump does not repeat jumps.</string>
     <string name="help_edges">Avoid staying near the screen edges, where tigers, lions and wolves can rush in before you have time to dodge.</string>
     <string name="back">Back</string>
     <string name="pause_action">Pause</string>
+    <string name="controls_move">Slide to move</string>
+    <string name="controls_jump">Jump</string>
+    <string name="jump_position">Jump button position</string>
+    <string name="jump_left">Left</string>
+    <string name="jump_right">Right</string>
 </resources>

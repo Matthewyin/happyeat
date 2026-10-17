@@ -20,11 +20,11 @@ Hi everyone! I just finished my first Android game and need 12 testers
 for Google Play's closed testing requirement (14 days).
 
 **HappyEat** — a cute catch & dodge arcade game:
-• Drag to catch falling food (beans, meat, pies) for points
+• Slide in the bottom move area to catch food; swap controls in Settings
 • Dodge rocks, bombs and knives (they cost a life!)
-• Tigers/lions/wolves charge along the ground — quick tap to JUMP over them
-• Catch a car or tank to ride invincible for 10 seconds
-• Day → sunset → night backgrounds, local leaderboard, chiptune BGM
+• Tigers/lions/wolves charge along the ground — press the dedicated JUMP button to dodge them
+• Catch a car or tank for protection lasting 10 seconds or 3 impacts, whichever comes first
+• Day → sunset → night backgrounds, local leaderboard, instrumental game BGM
 
 **What I need from you:**
 1. Open the opt-in link below with your Google account and join the test

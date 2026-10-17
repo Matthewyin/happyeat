@@ -267,6 +267,8 @@ class SettingsPage(context: Context) : Page(context) {
     private val userNameText = styledLabel()
     var onLanguageSelected: (String) -> Unit = {}
     var onBackgroundSelected: (BgMode) -> Unit = {}
+    var onJumpSideSelected: (Boolean) -> Unit = {}
+    private val jumpRows = linkedMapOf<Boolean, LinearLayout>()
     private val languageRows = linkedMapOf<String, LinearLayout>()
     private val backgroundRows = linkedMapOf<String, LinearLayout>()
     private fun select(row: LinearLayout, selected: Boolean) {
@@ -276,6 +278,7 @@ class SettingsPage(context: Context) : Page(context) {
     }
     public override fun onShow() {
         userNameText.text = context.getString(R.string.current_username_fmt, Prefs.userName(context).orEmpty())
+        jumpRows.forEach { (left, row) -> select(row, left == Prefs.jumpOnLeft(context)) }
         languageRows.forEach { (tag, row) -> select(row, tag == AppCompatLocaleReader.current()) }
         backgroundRows.forEach { (tag, row) -> select(row, tag == Prefs.backgroundMode(context)) }
     }
@@ -306,6 +309,14 @@ class SettingsPage(context: Context) : Page(context) {
         section(col, R.string.entry_language, "ui_language")
         listOf(R.string.follow_system to "", R.string.english to "en", R.string.chinese to "zh").forEach { (label, tag) ->
             languageRows[tag] = option(col, label) { onLanguageSelected(tag); onShow() }
+        }
+        section(col, R.string.jump_position, "ui_tap")
+        listOf(R.string.jump_right to false, R.string.jump_left to true).forEach { (label, left) ->
+            jumpRows[left] = option(col, label) {
+                Prefs.setJumpOnLeft(context, left)
+                onJumpSideSelected(left)
+                onShow()
+            }
         }
         section(col, R.string.entry_background, "ui_sun")
         listOf(R.string.bg_auto to "auto", R.string.bg_day to "day", R.string.bg_sunset to "sunset", R.string.bg_night to "night").forEach { (label, tag) ->
