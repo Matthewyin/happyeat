@@ -18,7 +18,7 @@ class GameView internal constructor(context: Context, private val session: GameS
 
     interface HudListener {
         fun onHudChanged(score: Int, lives: Int, pointsToNextLife: Int)
-        fun onVehicleChanged(riding: Boolean, hitsUsed: Int, secondsLeft: Int)
+        fun onVehicleChanged(riding: Boolean, hitsUsed: Int, secondsLeft: Int, ammoRemaining: Int, supplyVersion: Int)
         fun onGameOver(score: Int)
     }
 
@@ -56,8 +56,8 @@ class GameView internal constructor(context: Context, private val session: GameS
             postHud { it.onHudChanged(score, lives, pointsToNextLife) }
         }
 
-        override fun onVehicleChanged(riding: Boolean, hitsUsed: Int, secondsLeft: Int) {
-            postHud { it.onVehicleChanged(riding, hitsUsed, secondsLeft) }
+        override fun onVehicleChanged(riding: Boolean, hitsUsed: Int, secondsLeft: Int, ammoRemaining: Int, supplyVersion: Int) {
+            postHud { it.onVehicleChanged(riding, hitsUsed, secondsLeft, ammoRemaining, supplyVersion) }
         }
 
         override fun onGameOver(score: Int) {
@@ -81,6 +81,7 @@ class GameView internal constructor(context: Context, private val session: GameS
     private var prevBg: Bitmap? = null
     private var bgFadeStartMs = -1L
     private var playerBmp: Bitmap? = null
+    private var tankBmp: Bitmap? = null
     private val itemBmps = HashMap<ItemKind, Bitmap?>()
     private val beastBmps = HashMap<BeastKind, Bitmap?>()
 
@@ -141,6 +142,10 @@ class GameView internal constructor(context: Context, private val session: GameS
             eventVersion++
             shownBg = null
             prevBg = null
+            playerBmp = null
+            tankBmp = null
+            itemBmps.clear()
+            beastBmps.clear()
             if (world.listener === worldListener) world.listener = null
         }
         stopLoop()
@@ -222,13 +227,10 @@ class GameView internal constructor(context: Context, private val session: GameS
         }
     }
 
-    fun jumpPlayer() {
+    fun performPlayerAction() {
         synchronized(world) {
             if (released || pausedByUi || inMenu || world.gameOver) return
-            if (!world.player.isAirborne(world.gameTimeMs)) {
-                world.jumpPlayer()
-                SoundManager.play(SoundEvent.JUMP)
-            }
+            world.performPlayerAction()
         }
     }
 
@@ -266,6 +268,8 @@ class GameView internal constructor(context: Context, private val session: GameS
         val itemSize = (GameConfig.ITEM_SIZE * w).toInt().coerceAtLeast(8)
         val playerSize = (GameConfig.PLAYER_SIZE * w).toInt().coerceAtLeast(8)
         val beastSize = (GameConfig.BEAST_SIZE * w).toInt().coerceAtLeast(8)
+        val tankSize = (GameConfig.TANK_SIZE * w).toInt()
+        tankBmp = loadAndScale("tank", tankSize, tankSize)
         playerBmp = loadAndScale(SPRITE_PLAYER, playerSize, playerSize)
         world.player.spriteSizePx = playerBmp?.width?.toFloat()
         for (kind in ItemKind.entries) {
@@ -358,12 +362,19 @@ class GameView internal constructor(context: Context, private val session: GameS
         for (beast in world.beasts) {
             drawBeast(canvas, beast)
         }
+        world.tankDelivery?.let {
+            drawTank(canvas, it.x, it.sizePx, it.direction)
+            if (it.stoppedAtMs == null) drawNpc(canvas, it.x, world.groundY - it.sizePx, GameConfig.NPC_SIZE * w)
+        }
+        for (npc in world.returningNpcs) drawNpc(canvas, npc.x, world.groundY - npc.sizePx / 2f, npc.sizePx)
+        for (bullet in world.bullets) drawSprite(canvas, null, bullet.x, bullet.y, bullet.sizePx, GameConfig.NPC_COLOR)
         drawPlayer(canvas)
     }
 
     private fun drawSprite(canvas: Canvas, bmp: Bitmap?, cx: Float, cy: Float, size: Float, fallbackColor: Int) {
         if (bmp != null) {
-            canvas.drawBitmap(bmp, cx - bmp.width / 2f, cy - bmp.height / 2f, null)
+            dstRect.set(cx - size / 2f, cy - size / 2f, cx + size / 2f, cy + size / 2f)
+            canvas.drawBitmap(bmp, null, dstRect, null)
         } else {
             fallbackPaint.color = fallbackColor
             canvas.drawCircle(cx, cy, size / 2f, fallbackPaint)
@@ -390,6 +401,21 @@ class GameView internal constructor(context: Context, private val session: GameS
         }
     }
 
+    private fun drawTank(canvas: Canvas, x: Float, size: Float, direction: Int) {
+        val cy = world.groundY - size / 2f
+        canvas.save()
+        if (direction < 0) canvas.scale(-1f, 1f, x, cy)
+        drawSprite(canvas, tankBmp, x, cy, size, Color.rgb(85, 107, 47))
+        canvas.restore()
+    }
+
+    private fun drawNpc(canvas: Canvas, x: Float, cy: Float, size: Float) {
+        drawSprite(canvas, playerBmp, x, cy, size, GameConfig.NPC_COLOR)
+        fallbackPaint.color = GameConfig.NPC_COLOR
+        canvas.drawRect(x - size / 2f, cy - size / 2f,
+            x + size / 2f, cy - size / 2f + size * GameConfig.NPC_HAT_HEIGHT, fallbackPaint)
+    }
+
     private fun drawPlayer(canvas: Canvas) {
         val p = world.player
         val flickerHidden = !p.riding && p.isInvincible(world.gameTimeMs) &&
@@ -397,8 +423,7 @@ class GameView internal constructor(context: Context, private val session: GameS
         if (flickerHidden) return
         val cy = world.groundY - p.sizePx / 2f - p.heightOffset(world.gameTimeMs, world.viewH)
         if (p.riding) {
-            val vehicleBmp = if (p.vehicleKind == ItemKind.TANK) itemBmps[ItemKind.TANK] else itemBmps[ItemKind.CAR]
-            drawSprite(canvas, vehicleBmp, p.x, cy + p.sizePx * 0.15f, p.sizePx * 1.3f, Color.rgb(92, 98, 112))
+            drawTank(canvas, p.x, GameConfig.TANK_SIZE * world.viewW, p.lastFireDirection ?: 1)
             drawSprite(canvas, playerBmp, p.x, p.displayCenterY(world.groundY, world.gameTimeMs, world.viewH), p.displaySizePx, Color.rgb(232, 181, 124))
         } else {
             drawSprite(canvas, playerBmp, p.x, p.displayCenterY(world.groundY, world.gameTimeMs, world.viewH), p.displaySizePx, Color.rgb(232, 181, 124))
@@ -420,8 +445,6 @@ class GameView internal constructor(context: Context, private val session: GameS
             ItemKind.ROCK to "rock",
             ItemKind.BOMB to "bomb",
             ItemKind.KNIFE to "knife",
-            ItemKind.CAR to "car",
-            ItemKind.TANK to "tank",
         )
         private val BEAST_SPRITES = mapOf(
             BeastKind.TIGER to "tiger",
@@ -435,8 +458,6 @@ class GameView internal constructor(context: Context, private val session: GameS
             ItemKind.ROCK to Color.rgb(128, 128, 128),
             ItemKind.BOMB to Color.rgb(40, 40, 46),
             ItemKind.KNIFE to Color.rgb(192, 197, 206),
-            ItemKind.CAR to Color.rgb(64, 123, 197),
-            ItemKind.TANK to Color.rgb(85, 107, 47),
         )
     }
 }

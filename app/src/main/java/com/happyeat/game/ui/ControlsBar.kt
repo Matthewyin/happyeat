@@ -15,6 +15,22 @@ class ControlsBar(context: Context, move: (Float) -> Unit, jump: () -> Unit) : L
     private val moveArea = Area(R.string.controls_move, "ui_move", move, null)
     private val jumpArea = Area(R.string.controls_jump, "ui_tap", null, jump)
 
+    private var riding = false
+    private var ammo = 0
+    private var supplyVersion = 0
+
+    fun setActionState(riding: Boolean, ammo: Int, supplyVersion: Int) {
+        if (this.riding == riding && this.ammo == ammo && this.supplyVersion == supplyVersion) return
+        this.riding = riding
+        this.ammo = ammo
+        this.supplyVersion = supplyVersion
+        jumpArea.clearInput()
+        val text = if (riding) context.getString(R.string.controls_fire, ammo) else context.getString(R.string.controls_jump)
+        jumpArea.labelView.text = text
+        jumpArea.contentDescription = text
+        jumpArea.isEnabled = isEnabled && (!riding || ammo > 0)
+    }
+
     init {
         orientation = HORIZONTAL
         isMotionEventSplittingEnabled = true
@@ -46,7 +62,7 @@ class ControlsBar(context: Context, move: (Float) -> Unit, jump: () -> Unit) : L
         super.setEnabled(enabled)
         if (!enabled) clearInput()
         moveArea.isEnabled = enabled
-        jumpArea.isEnabled = enabled
+        jumpArea.isEnabled = enabled && (!riding || ammo > 0)
     }
 
     override fun onDetachedFromWindow() {
@@ -60,6 +76,8 @@ class ControlsBar(context: Context, move: (Float) -> Unit, jump: () -> Unit) : L
         private var pointerId = MotionEvent.INVALID_POINTER_ID
         private var lastX = 0f
 
+        val labelView = TextView(context)
+
         init {
             orientation = VERTICAL
             gravity = Gravity.CENTER
@@ -68,7 +86,7 @@ class ControlsBar(context: Context, move: (Float) -> Unit, jump: () -> Unit) : L
             contentDescription = context.getString(label)
             setWillNotDraw(false)
             addView(uiIcon(context, icon), LayoutParams(dp(Candy.ICON), dp(Candy.ICON)))
-            addView(TextView(context).apply {
+            addView(labelView.apply {
                 setText(label)
                 setTextColor(Candy.INK)
                 textSize = Candy.SMALL_TEXT
@@ -151,7 +169,7 @@ class ControlsBar(context: Context, move: (Float) -> Unit, jump: () -> Unit) : L
             return true
         }
 
-        // 触摸只在按下时跳跃，无障碍点击仍可执行同一个动作。
+        // 触摸只在按下时执行动作，无障碍点击仍可执行同一个动作。
         override fun performClick(): Boolean {
             super.performClick()
             if (isEnabled) jump?.invoke()

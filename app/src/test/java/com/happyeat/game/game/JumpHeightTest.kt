@@ -10,13 +10,13 @@ class JumpHeightTest {
             val world = GameWorld().apply { spawnEnabled = false; onSize(width, height); reset() }
             val player = world.player
             val standing = player.displayCenterY(world.groundY, world.gameTimeMs, height)
-            world.jumpPlayer()
+            world.performPlayerAction()
             world.update(GameConfig.JUMP_AIRTIME_MS / 2)
             val peak = player.displayCenterY(world.groundY, world.gameTimeMs, height)
             for (kind in BeastKind.entries) {
                 val beast = Beast(kind, GameConfig.BEAST_SIZE * width, 0f, width / 2, 1)
                 beast.jumping = true
-                beast.update(GameConfig.BEAST_JUMP_DURATION_MS / 2000f)
+                beast.update(GameConfig.BEAST_JUMP_DURATION_MS / 2000f, allowJump = true)
                 val beastCenter = world.groundY - beast.sizePx / 2 - beast.heightOffset(height)
                 assertTrue("人物峰值须高于 $kind", standing - peak > beast.heightOffset(height))
                 val playerBox = player.hitbox(world.groundY, world.gameTimeMs, height)
@@ -26,7 +26,7 @@ class JumpHeightTest {
                 assertTrue(peak < beastCenter)
                 assertTrue(peak - player.displaySizePx / 2 < beastCenter - beast.sizePx / 2)
                 assertTrue(peak + player.displaySizePx / 2 < beastCenter + beast.sizePx / 2)
-                beast.update(GameConfig.BEAST_JUMP_DURATION_MS / 2000f)
+                beast.update(GameConfig.BEAST_JUMP_DURATION_MS / 2000f, allowJump = true)
                 assertEquals(0f, beast.heightOffset(height), 0.001f)
             }
             world.update(GameConfig.JUMP_AIRTIME_MS - GameConfig.JUMP_AIRTIME_MS / 2)
@@ -57,14 +57,15 @@ class JumpHeightTest {
                 world.player.resetState()
                 world.player.jump(world.gameTimeMs)
                 val peakBox = world.player.hitbox(world.groundY, world.gameTimeMs + GameConfig.JUMP_AIRTIME_MS / 2, height)
-                assertTrue(peakBox.bottom < beast.hitbox(world.groundY, height).top)
+                if (riding) assertFalse(world.player.isAirborne(world.gameTimeMs))
+                else assertTrue(peakBox.bottom < beast.hitbox(world.groundY, height).top)
             }
         }
     }
 
     @Test fun airborneDragMovesBothWaysWithoutRestartingJumpAndClampsEdges() {
         val world = GameWorld().apply { spawnEnabled = false; onSize(1080f, 2400f); reset() }
-        world.jumpPlayer()
+        world.performPlayerAction()
         world.update(GameConfig.JUMP_AIRTIME_MS / 4)
         val x = world.player.x
         val height = world.player.heightOffset(world.gameTimeMs, world.viewH)
@@ -72,7 +73,7 @@ class JumpHeightTest {
         assertTrue(world.player.x < x)
         world.dragPlayerBy(world.viewW / 4)
         assertTrue(world.player.x > x)
-        world.jumpPlayer()
+        world.performPlayerAction()
         assertEquals(height, world.player.heightOffset(world.gameTimeMs, world.viewH), 0f)
         world.dragPlayerBy(-world.viewW * 2)
         assertEquals(world.player.sizePx / 2, world.player.x, 0f)

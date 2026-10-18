@@ -19,9 +19,17 @@ class Beast(
     var jumpT = 0f
         private set
 
-    fun update(dt: Float) {
+    // 在顶点和落地处截断扫掠线段，避免一个线段横跨正弦曲线的转折。
+    val secondsToJumpBoundary: Float
+        get() = if (jumping) ((if (jumpT < 0.5f) 0.5f else 1f) - jumpT) *
+            GameConfig.BEAST_JUMP_DURATION_MS / 1000f else Float.POSITIVE_INFINITY
+
+    fun update(dt: Float, allowJump: Boolean) {
         x += speedPxPerSec * direction * dt
-        if (jumping) {
+        if (!allowJump) {
+            jumping = false
+            jumpT = 0f
+        } else if (jumping) {
             jumpT += dt * 1000f / GameConfig.BEAST_JUMP_DURATION_MS
             if (jumpT >= 1f) {
                 jumping = false

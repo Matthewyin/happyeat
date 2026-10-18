@@ -7,7 +7,13 @@ object GameConfig {
     const val INVINCIBLE_AFTER_HIT_MS = 2_000L
 
     const val FALL_SPAWN_INTERVAL_MS = 900L
-    const val BEAST_SPAWN_INTERVAL_MS = 9_000L
+    const val HAZARD_SCORE_THRESHOLD = 50
+    const val BEAST_SCORE_THRESHOLD = 100
+    const val BEAST_JUMP_SCORE_THRESHOLD = 200
+    const val BEAST_FREQUENCY_SCORE_THRESHOLD = 300
+    const val BEAST_FREQUENCY_RAMP_SCORE = 300
+    const val BEAST_SPAWN_INTERVAL_MS = 12_000L
+    const val BEAST_MIN_SPAWN_INTERVAL_MS = 6_000L
     const val MAX_BEASTS_ON_SCREEN = 3
 
     const val DIFFICULTY_RAMP_MS = 300_000L
@@ -24,8 +30,23 @@ object GameConfig {
     const val SCORE_CRUSH_HAZARD = 3
     const val SCORE_CRUSH_BEAST = 10
 
-    const val VEHICLE_DURATION_MS = 10_000L
+    const val VEHICLE_DURATION_MS = 15_000L
     const val VEHICLE_MAX_HITS = 3
+    const val TANK_AMMO = 3
+    const val TANK_WAIT_MS = 3_000L
+    const val TANK_STOP_FRACTION = 1f / 3f
+    const val TANK_SIZE = 0.169f
+    const val TANK_SPEED = 0.25f
+    const val NPC_SIZE = 0.065f
+    const val NPC_SPEED = 0.3f
+    const val NPC_HAT_HEIGHT = 0.2f
+    const val NPC_COLOR = 0xFFFFD34D.toInt()
+    const val BULLET_SIZE = 0.015f
+    const val BULLET_SPEED = 1.5f
+    const val BULLET_HEIGHT = TANK_SIZE * 0.56f
+    const val BULLET_MUZZLE = TANK_SIZE * 0.43f
+    const val PHYSICS_STEP_MS = 10L
+    const val SCORE_WOLF = 5
 
     const val FALL_SPEED_BASE = 0.28f
     const val FALL_SPEED_VARIANCE = 0.15f

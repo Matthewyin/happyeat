@@ -59,7 +59,11 @@ class MainActivityInstrumentation : Instrumentation() {
             sendStatus(0, Bundle().apply {
                 putString("stream", "BACKUP applicationLocales='$oldLocale' resourceLocales='$oldResourceLocales'\n")
             })
-            if (!qaOnly) {
+            if (!qaOnly || groupFilter == "坦克") {
+            test("坦克送达与独立NPC") { tankDeliveryScenes() }
+            test("坦克双指射击与空弹门控") { tankControlsScenes() }
+            test("坦克炮击补给报废与清理") { tankCombatScenes() }
+            test("坦克中英重建与换边布局") { tankLanguageScenes() }
             test("音频原生播放器切轨与完整循环") { nativeAudio() }
             test("优化视觉场景") { polishScenes() }
             test("操作区相对移动与多指") { controlsPointers() }
@@ -78,7 +82,7 @@ class MainActivityInstrumentation : Instrumentation() {
             test("正常入口教学快速暂停与结算背景") { normalEntryBackgroundFrames() }
             test("用户名保存校验取消重建历史记录及暂停入口") { usernameEditing() }
             }
-            if (captureQa && groupFilter != "用户名" && groupFilter != "操作区" && groupFilter != "优化" && groupFilter != "音频") captureScreens()
+            if (captureQa && groupFilter != "用户名" && groupFilter != "操作区" && groupFilter != "优化" && groupFilter != "音频" && groupFilter != "坦克") captureScreens()
         } catch (t: Throwable) {
             failure = t
         } finally {
@@ -109,7 +113,7 @@ class MainActivityInstrumentation : Instrumentation() {
             }
         }
         finish(if (failure == null) Activity.RESULT_OK else Activity.RESULT_CANCELED, Bundle().apply {
-            putString("stream", (if (qaOnly) "仅截图采集，未运行测试\n" else if (groupFilter.isEmpty()) "通过 $passed 项\n" else "过滤组 '$groupFilter'：通过 $passed 项\n") +
+            putString("stream", (if (qaOnly && groupFilter != "坦克") "仅截图采集，未运行测试\n" else if (groupFilter.isEmpty()) "通过 $passed 项\n" else "过滤组 '$groupFilter'：通过 $passed 项\n") +
                 "BACKUP applicationLocales=${oldLocale?.let { "'$it'" } ?: "未获取"}\n" +
                 "RESTORED applicationLocales=${restoredLocale?.let { "'$it'" } ?: "未确认"}\n" +
                 (failure?.stackTraceToString() ?: "全部通过"))
@@ -189,6 +193,14 @@ class MainActivityInstrumentation : Instrumentation() {
         }
         error("等待状态超时")
     }
+    private fun deliverTank(w: GameWorld, direction: Int = 1) {
+        val delivery = TankDelivery(direction, w.viewW)
+        w.tankDelivery = delivery
+        w.player.x = delivery.targetX
+        while (w.tankDelivery != null) w.update(GameConfig.PHYSICS_STEP_MS)
+        check(w.player.riding)
+    }
+
     private fun newPausedGame() {
         main {
             invoke(activity, "restartGame")
@@ -224,7 +236,10 @@ class MainActivityInstrumentation : Instrumentation() {
             .filter { !Modifier.isStatic(it.modifiers) && (it.type.isPrimitive || it.type.isEnum) }
             .sortedBy { it.name }.map { it.isAccessible = true; it.get(obj) }
         return scalars(w) + scalars(w.player) + w.items.flatMap { listOf(it) + scalars(it) } +
-            w.beasts.flatMap { listOf(it) + scalars(it) }
+            w.beasts.flatMap { listOf(it) + scalars(it) } +
+            listOf(w.player.lastFireDirection, w.tankDelivery, w.tankDelivery?.stoppedAtMs) +
+            (w.tankDelivery?.let { scalars(it) } ?: emptyList()) +
+            w.returningNpcs.flatMap { listOf(it) + scalars(it) } + w.bullets.flatMap { listOf(it) + scalars(it) }
     }
 
     private fun languageRetention() {
@@ -236,11 +251,12 @@ class MainActivityInstrumentation : Instrumentation() {
             synchronized(retained) {
                 set(retained, "score", 137)
                 set(retained, "lives", 2)
+                deliverTank(retained)
                 set(retained, "gameTimeMs", 67_123L)
+                retained.player.vehicleExpiresAtMs = retained.gameTimeMs + GameConfig.VEHICLE_DURATION_MS
                 set(retained, "fallTimerMs", 177L)
                 set(retained, "beastTimerMs", 244L)
                 retained.player.x = retained.viewW * 0.4f
-                retained.player.mount(ItemKind.TANK, retained.gameTimeMs)
                 retained.player.registerCrush()
                 retained.player.jump(retained.gameTimeMs - 150L)
                 retained.player.invincibleUntilMs = retained.gameTimeMs + 1900L
@@ -431,8 +447,8 @@ class MainActivityInstrumentation : Instrumentation() {
             val w = world()
             synchronized(w) {
                 set(w, "score", abandonedScore)
-                w.player.mount(ItemKind.TANK, w.gameTimeMs)
-                w.jumpPlayer()
+                deliverTank(w)
+                w.performPlayerAction()
                 w.update(GameConfig.JUMP_AIRTIME_MS / 4)
                 w.items.add(FallingItem(ItemKind.BEAN, 40f, 0f, 0f, 0f))
                 w.beasts.add(Beast(BeastKind.WOLF, 40f, 0f, 0f, 1))
@@ -747,7 +763,8 @@ class MainActivityInstrumentation : Instrumentation() {
         waitForIdleSync()
         // 页面入场动画会临时移动内容，等动画结束再检查屏幕裁切。
         await { panel("helpPage").translationX == 0f }
-        for (res in listOf(R.string.help_air_move, R.string.help_edges)) {
+        for (res in listOf(R.string.help_air_move, R.string.help_edges, R.string.help_bean,
+            R.string.help_vehicle, R.string.help_hazard, R.string.help_beast)) {
             lateinit var label: TextView
             main {
                 val page = panel("helpPage")
@@ -813,7 +830,7 @@ class MainActivityInstrumentation : Instrumentation() {
         SystemClock.sleep(200)
         val image = checkNotNull(uiAutomation.takeScreenshot())
         val folder = java.io.File(targetContext.getExternalFilesDir(null),
-            if (groupFilter == "优化") "qa-polish" else if (groupFilter == "操作区") "qa-controls" else if (groupFilter == "用户名") "qa-username" else "qa-b").apply { mkdirs() }
+            if (groupFilter == "坦克") "qa-tank" else if (groupFilter == "优化") "qa-polish" else if (groupFilter == "操作区") "qa-controls" else if (groupFilter == "用户名") "qa-username" else "qa-b").apply { mkdirs() }
         java.io.File(folder, "$name.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
         image.recycle()
     }
@@ -1195,9 +1212,7 @@ class MainActivityInstrumentation : Instrumentation() {
         }
     }
 
-    private fun controlArea(jump: Boolean): View = descendants(controls()).first {
-        it.contentDescription?.toString() == activity.getString(if (jump) R.string.controls_jump else R.string.controls_move)
-    }
+    private fun controlArea(jump: Boolean): View = field(controls(), if (jump) "jumpArea" else "moveArea")
 
     private data class Finger(val id: Int, val x: Float, val y: Float)
 
@@ -1226,6 +1241,314 @@ class MainActivityInstrumentation : Instrumentation() {
     private fun tickJump() = synchronized(world()) { world().update(GameConfig.JUMP_AIRTIME_MS + 1) }
     private fun airborne() = world().player.isAirborne(world().gameTimeMs)
     private fun near(actual: Float, expected: Float) { check(kotlin.math.abs(actual - expected) < 0.1f) { "$actual != $expected" } }
+
+    private fun tankFrame(name: String) {
+        main {
+            val v = view()
+            val canvas = checkNotNull(v.holder.lockCanvas())
+            try {
+                synchronized(world()) {
+                    v.javaClass.getDeclaredMethod("drawFrame", Canvas::class.java).apply { isAccessible = true }
+                        .invoke(v, canvas)
+                }
+            } finally { v.holder.unlockCanvasAndPost(canvas) }
+        }
+        if (captureQa) screenshot(name)
+    }
+
+    private fun tapTankAction() {
+        main {
+            val action = finger(19, controlArea(true))
+            dispatch(android.view.MotionEvent.ACTION_DOWN, action)
+            dispatch(android.view.MotionEvent.ACTION_UP, action)
+        }
+        waitForIdleSync()
+    }
+
+    private fun tankDeliveryScenes() {
+        for (direction in listOf(-1, 1)) {
+            inputGame()
+            lateinit var delivery: TankDelivery
+            main {
+                synchronized(world()) {
+                    val w = world()
+                    delivery = TankDelivery(direction, w.viewW)
+                    w.tankDelivery = delivery
+                    w.update(600)
+                    w.player.x = delivery.x
+                    w.update(0)
+                    check(!w.player.riding && delivery.stoppedAtMs == null)
+                    w.player.x = if (direction > 0) w.viewW else 0f
+                }
+            }
+            tankFrame("tank-incoming-$direction")
+            main {
+                synchronized(world()) {
+                    while (delivery.stoppedAtMs == null) world().update(GameConfig.PHYSICS_STEP_MS)
+                    near(delivery.x, world().viewW * if (direction > 0) GameConfig.TANK_STOP_FRACTION else 1f - GameConfig.TANK_STOP_FRACTION)
+                    check(world().returningNpcs.size == 1)
+                }
+            }
+            tankFrame("tank-stopped-npc-$direction")
+            main { synchronized(world()) { world().player.x = delivery.x } }
+            tapTankAction()
+            main {
+                synchronized(world()) {
+                    world().update(0)
+                    check(airborne() && !world().player.riding)
+                    world().update(GameConfig.JUMP_AIRTIME_MS / 2)
+                    check(!world().player.riding)
+                }
+            }
+            tankFrame("tank-airborne-$direction")
+            main {
+                synchronized(world()) {
+                    world().update(GameConfig.JUMP_AIRTIME_MS / 2)
+                    check(world().player.riding && world().tankDelivery == null)
+                    check(world().returningNpcs.isNotEmpty())
+                    check(world().player.lastFireDirection == direction)
+                }
+            }
+            waitForIdleSync()
+            tankFrame("tank-boarded-npc-$direction")
+            main {
+                synchronized(world()) {
+                    world().update(GameConfig.TANK_WAIT_MS)
+                    check(world().returningNpcs.isEmpty())
+                }
+            }
+            inputGame()
+            main {
+                synchronized(world()) {
+                    val w = world()
+                    delivery = TankDelivery(direction, w.viewW)
+                    w.tankDelivery = delivery
+                    w.player.x = if (direction > 0) w.viewW else 0f
+                    while (delivery.stoppedAtMs == null) w.update(GameConfig.PHYSICS_STEP_MS)
+                    w.update(GameConfig.TANK_WAIT_MS - 1)
+                    check(w.tankDelivery === delivery)
+                    w.player.x = delivery.x
+                    w.update(1)
+                    check(w.tankDelivery == null && !w.player.riding)
+                }
+            }
+        }
+    }
+
+    private fun tankControlsScenes() {
+        for (left in listOf(false, true)) {
+            inputGame()
+            main {
+                synchronized(world()) { deliverTank(world(), if (left) -1 else 1) }
+                controls().setJumpOnLeft(left)
+            }
+            waitForIdleSync()
+            lateinit var move: Finger
+            lateinit var action: Finger
+            var start = 0f
+            main {
+                move = finger(7, controlArea(false)); action = finger(19, controlArea(true))
+                start = world().player.x
+                check(controlArea(true).contentDescription == activity.getString(R.string.controls_fire, 3))
+                dispatch(android.view.MotionEvent.ACTION_DOWN, move)
+                dispatch(android.view.MotionEvent.ACTION_POINTER_DOWN, move, action, index = 1)
+                check(world().player.ammoRemaining == 2 && world().bullets.size == 1)
+            }
+            waitForIdleSync()
+            main {
+                dispatch(android.view.MotionEvent.ACTION_MOVE, move.copy(x = move.x + 20), action)
+                near(world().player.x, start + 20)
+                synchronized(world()) { world().update(1000) }
+                dispatch(android.view.MotionEvent.ACTION_MOVE, move.copy(x = move.x + 40), action)
+                near(world().player.x, start + 40)
+                check(world().player.ammoRemaining == 2 && !airborne())
+            }
+            waitForIdleSync()
+            main {
+                dispatch(android.view.MotionEvent.ACTION_MOVE, move.copy(x = move.x + 50), action)
+                near(world().player.x, start + 50)
+                dispatch(android.view.MotionEvent.ACTION_POINTER_UP, move.copy(x = move.x + 50), action, index = 1)
+                dispatch(android.view.MotionEvent.ACTION_POINTER_DOWN, move.copy(x = move.x + 50), action, index = 1)
+                check(world().player.ammoRemaining == 1)
+                dispatch(android.view.MotionEvent.ACTION_POINTER_UP, move.copy(x = move.x + 50), action, index = 1)
+                dispatch(android.view.MotionEvent.ACTION_UP, move.copy(x = move.x + 50))
+            }
+            waitForIdleSync()
+            tankFrame("tank-fire-$left")
+            tapTankAction()
+            main {
+                check(world().player.ammoRemaining == 0)
+                check(!controlArea(true).isEnabled && controlArea(false).isEnabled)
+                check(controlArea(true).contentDescription == activity.getString(R.string.controls_fire, 0))
+                activity.onWindowFocusChanged(false); activity.onWindowFocusChanged(true)
+                check(!controlArea(true).isEnabled && controlArea(false).isEnabled)
+                val x = world().player.x
+                dispatch(android.view.MotionEvent.ACTION_DOWN, move)
+                dispatch(android.view.MotionEvent.ACTION_MOVE, move.copy(x = move.x - 20))
+                dispatch(android.view.MotionEvent.ACTION_UP, move.copy(x = move.x - 20))
+                near(world().player.x, x - 20)
+                controlArea(true).performClick()
+                check(world().player.ammoRemaining == 0 && !airborne())
+                invoke(view(), "stopLoop")
+            }
+            tankFrame("tank-empty-$left")
+            main {
+                synchronized(world()) {
+                    world().dragPlayerBy(-world().viewW * 2)
+                    near(world().player.x, GameConfig.TANK_SIZE * world().viewW / 2)
+                }
+            }
+            tankFrame("tank-edge-left-$left")
+            main {
+                synchronized(world()) {
+                    world().dragPlayerBy(world().viewW * 2)
+                    near(world().player.x, world().viewW - GameConfig.TANK_SIZE * world().viewW / 2)
+                }
+            }
+            tankFrame("tank-edge-right-$left")
+        }
+    }
+
+    private fun tankCombatScenes() {
+        inputGame()
+        main { synchronized(world()) { deliverTank(world()) } }
+        waitForIdleSync()
+        for (kind in BeastKind.entries) {
+            var score = 0
+            main {
+                synchronized(world()) {
+                    val w = world(); score = w.score
+                    w.beasts.add(Beast(kind, GameConfig.BEAST_SIZE * w.viewW, 0f,
+                        w.player.x + w.viewW * 0.2f, -1))
+                }
+            }
+            tapTankAction()
+            main {
+                synchronized(world()) {
+                    world().update(20L)
+                    check(world().bullets.size == 1)
+                    check(world().score == score)
+                }
+            }
+            tankFrame("tank-shell-$kind")
+            main {
+                synchronized(world()) {
+                    world().update(130L)
+                    check(world().beasts.isEmpty())
+                    check(world().score == score + if (kind == BeastKind.WOLF) GameConfig.SCORE_WOLF else GameConfig.SCORE_CRUSH_BEAST)
+                    check(world().player.vehicleHits == 0)
+                }
+            }
+        }
+        fun hit() = synchronized(world()) {
+            val w = world()
+            w.items.add(FallingItem(ItemKind.ROCK, GameConfig.ITEM_SIZE * w.viewW, 0f, w.player.x,
+                w.player.displayCenterY(w.groundY, w.gameTimeMs, w.viewH)))
+            w.update(0)
+        }
+        main {
+            hit(); hit()
+            synchronized(world()) {
+                val direction = world().player.lastFireDirection
+                deliverTank(world(), -1)
+                check(world().player.vehicleHits == 2 && world().player.ammoRemaining == 3)
+                check(world().player.lastFireDirection == direction)
+            }
+        }
+        waitForIdleSync()
+        main {
+            check(controlArea(true).isEnabled)
+            controlArea(true).performClick()
+            check(world().player.ammoRemaining == 2)
+            hit()
+            check(!world().player.riding && world().bullets.isNotEmpty())
+        }
+        waitForIdleSync()
+        main {
+            check(controlArea(true).contentDescription == activity.getString(R.string.controls_jump))
+            check(controlArea(true).isEnabled)
+            synchronized(world()) {
+                val w = world(); val shell = w.bullets.single(); val score = w.score
+                w.beasts.add(Beast(BeastKind.WOLF, GameConfig.BEAST_SIZE * w.viewW, 0f,
+                    shell.x + shell.direction * w.viewW * 0.15f, -shell.direction))
+                w.update(100)
+                check(w.score == score + GameConfig.SCORE_WOLF)
+                deliverTank(w)
+                w.update(GameConfig.VEHICLE_DURATION_MS)
+                check(!w.player.riding)
+            }
+        }
+        waitForIdleSync()
+        tapTankAction()
+        main {
+            check(airborne())
+            invoke(activity, "backToMenu")
+            check(world().tankDelivery == null && world().returningNpcs.isEmpty() && world().bullets.isEmpty())
+            check(world().player.lastFireDirection == null && world().player.ammoRemaining == 0)
+        }
+        inputGame()
+        main { check(controlArea(true).contentDescription == activity.getString(R.string.controls_jump)) }
+    }
+
+    private fun tankLanguageScenes() {
+        for (phase in listOf("incoming", "waiting", "returning", "shell")) {
+            inputGame()
+            lateinit var retained: GameWorld
+            lateinit var before: List<Any?>
+            main {
+                synchronized(world()) {
+                    val w = world(); retained = w
+                    if (phase == "incoming" || phase == "waiting") {
+                        val d = TankDelivery(-1, w.viewW); w.tankDelivery = d; w.dragPlayerBy(-w.viewW)
+                        w.update(600)
+                        if (phase == "waiting") while (d.stoppedAtMs == null) w.update(GameConfig.PHYSICS_STEP_MS)
+                    } else deliverTank(w, -1)
+                }
+            }
+            waitForIdleSync()
+            if (phase == "shell") {
+                tapTankAction()
+                main { synchronized(world()) { world().player.registerCrush(); world().refreshHud() } }
+                waitForIdleSync()
+            }
+            main {
+                click(activity.window.decorView, activity.getString(R.string.settings))
+                before = snapshot(world())
+            }
+            changeLanguage(if (activity.resources.configuration.locales[0].language == "zh") "en" else "zh")
+            main {
+                check(world() === retained) { "$phase 重建替换了 world" }
+                val after = snapshot(world())
+                check(after == before) {
+                    "$phase 重建状态差异：" + before.indices.filter { before[it] != after.getOrNull(it) }
+                        .joinToString { "[$it] ${before[it]} -> ${after.getOrNull(it)}" }
+                }
+                check(!field<Boolean>(view(), "running"))
+                val expected = if (world().player.riding) activity.getString(R.string.controls_fire, world().player.ammoRemaining)
+                    else activity.getString(R.string.controls_jump)
+                check(controlArea(true).contentDescription == expected)
+                click("settingsPage", if (Prefs.jumpOnLeft(activity)) R.string.jump_right else R.string.jump_left)
+                check(snapshot(world()) == before)
+            }
+            if (captureQa) screenshot("tank-language-$phase-settings")
+            main {
+                back("settingsPage")
+                check(snapshot(world()) == before)
+                click("pausePanel", R.string.menu_help)
+            }
+            verifyReadableTips()
+            if (captureQa) captureScroll("helpPage", "tank-language-$phase-help")
+            main { back("helpPage"); click("pausePanel", R.string.resume); invoke(view(), "stopLoop") }
+            waitForIdleSync()
+            main {
+                val label = descendants(controlArea(true)).filterIsInstance<TextView>().single()
+                val layout = checkNotNull(label.layout)
+                for (line in 0 until layout.lineCount) check(layout.getEllipsisCount(line) == 0)
+                check(layout.getLineBottom(layout.lineCount - 1) <= label.height - label.compoundPaddingTop - label.compoundPaddingBottom)
+            }
+            tankFrame("tank-language-$phase-restored")
+        }
+    }
 
     private fun controlsPointers() {
         inputGame()
@@ -1601,14 +1924,14 @@ class MainActivityInstrumentation : Instrumentation() {
             screenshot("$tag-sprites-walking")
             main { view().bgMode = BgMode.NIGHT }
             screenshot("$tag-sprites-night")
-            main { synchronized(world()) { world().player.mount(ItemKind.CAR, world().gameTimeMs) }; view().bgMode = BgMode.DAY }
+            main { synchronized(world()) { deliverTank(world()) }; view().bgMode = BgMode.DAY }
             screenshot("$tag-sprites-riding")
             main {
                 synchronized(world()) {
                     world().player.riding = false
-                    world().jumpPlayer()
+                    world().performPlayerAction()
                     set(world(), "gameTimeMs", GameConfig.JUMP_AIRTIME_MS / 2)
-                    world().beasts.forEach { it.jumping = true; it.update(GameConfig.BEAST_JUMP_DURATION_MS / 2000f) }
+                    world().beasts.forEach { it.jumping = true; it.update(GameConfig.BEAST_JUMP_DURATION_MS / 2000f, allowJump = true) }
                 }
                 view().bgMode = BgMode.DAY
             }
@@ -1702,12 +2025,12 @@ class MainActivityInstrumentation : Instrumentation() {
             }
             if (captureQa) screenshot("polish-background-$phase")
         }
-        for (vehicle in listOf(ItemKind.CAR, ItemKind.TANK)) {
+        for (direction in listOf(-1, 1)) {
             main {
-                synchronized(world()) { world().player.mount(vehicle, world().gameTimeMs) }
+                synchronized(world()) { deliverTank(world(), direction) }
                 view().bgMode = BgMode.DAY
             }
-            if (captureQa) screenshot("polish-riding-$vehicle")
+            if (captureQa) screenshot("polish-riding-$direction")
         }
         for (left in listOf(false, true)) {
             main { controls().setJumpOnLeft(left); controls().isEnabled = true }
@@ -1737,7 +2060,6 @@ class MainActivityInstrumentation : Instrumentation() {
                         w.player.spriteSizePx = image?.width?.toFloat()
                         for (riding in listOf(false, true)) {
                             w.player.riding = riding
-                            w.player.vehicleKind = ItemKind.CAR
                             if (image === original) {
                                 check(field<Bitmap>(v, "playerBmp").width == original.width)
                                 check(w.player.displaySizePx == original.width.toFloat())

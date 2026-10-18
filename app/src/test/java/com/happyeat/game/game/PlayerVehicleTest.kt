@@ -14,15 +14,15 @@ class PlayerVehicleTest {
     @Test
     fun scrapThenRemountStartsHitCountAtZero() {
         val player = Player()
-        player.mount(ItemKind.CAR, 0L)
+        player.mount(0L, 1)
         repeat(GameConfig.VEHICLE_MAX_HITS) { player.registerCrush() }
         assertFalse(player.riding)
         assertEquals(GameConfig.VEHICLE_MAX_HITS, player.vehicleHits)
 
-        player.mount(ItemKind.TANK, 5_000L)
+        player.mount(5_000L, 1)
         assertTrue(player.riding)
         assertEquals(0, player.vehicleHits)
-        assertEquals(ItemKind.TANK, player.vehicleKind)
+        assertEquals(GameConfig.TANK_AMMO, player.ammoRemaining)
 
         // 新车要能再承受满额之前的撞击，不能第一下就报废
         player.registerCrush()
@@ -33,28 +33,28 @@ class PlayerVehicleTest {
     @Test
     fun remountWhileRidingKeepsHitsAndRefreshesDuration() {
         val player = Player()
-        player.mount(ItemKind.CAR, 0L)
+        player.mount(0L, 1)
         player.registerCrush()
         player.registerCrush()
 
-        player.mount(ItemKind.TANK, 4_000L)
+        player.mount(4_000L, 1)
 
         assertTrue(player.riding)
         assertEquals(2, player.vehicleHits)
-        assertEquals(ItemKind.TANK, player.vehicleKind)
+        assertEquals(GameConfig.TANK_AMMO, player.ammoRemaining)
         assertEquals(4_000L + GameConfig.VEHICLE_DURATION_MS, player.vehicleExpiresAtMs)
     }
 
     @Test
     fun expiryThenRemountStartsHitCountAtZero() {
         val player = Player()
-        player.mount(ItemKind.CAR, 0L)
+        player.mount(0L, 1)
         player.registerCrush()
         player.registerCrush()
         player.tickVehicle(GameConfig.VEHICLE_DURATION_MS)
         assertFalse(player.riding)
 
-        player.mount(ItemKind.CAR, GameConfig.VEHICLE_DURATION_MS)
+        player.mount(GameConfig.VEHICLE_DURATION_MS, 1)
 
         assertTrue(player.riding)
         assertEquals(0, player.vehicleHits)

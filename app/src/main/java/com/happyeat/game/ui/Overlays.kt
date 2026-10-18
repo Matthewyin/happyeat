@@ -334,7 +334,7 @@ class HelpPage(context: Context) : Page(context) {
     init {
         val col = pageColumn(R.string.help_title) { onBack?.invoke() }
         listOf("bean" to R.string.help_bean, "meat" to R.string.help_meat, "pie" to R.string.help_pie,
-            "car" to R.string.help_vehicle, "bomb" to R.string.help_hazard, "tiger" to R.string.help_beast,
+            "tank" to R.string.help_vehicle, "bomb" to R.string.help_hazard, "tiger" to R.string.help_beast,
             "ui_tap" to R.string.help_controls, "ui_move" to R.string.help_air_move, "ui_help" to R.string.help_edges).forEach { (icon, text) ->
             val row = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
             row.addView(uiIcon(context, icon), LinearLayout.LayoutParams(dp(Candy.ART_ICON), dp(Candy.ART_ICON)))

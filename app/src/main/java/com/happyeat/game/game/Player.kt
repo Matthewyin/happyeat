@@ -16,7 +16,10 @@ class Player {
             if (riding) sizePx * GameConfig.RIDING_PLAYER_OFFSET else 0f
 
     var riding = false
-    var vehicleKind: ItemKind? = null
+    var supplyVersion = 0
+        private set
+    var ammoRemaining = 0
+    var lastFireDirection: Int? = null
     var vehicleHits = 0
     var vehicleExpiresAtMs = 0L
     var invincibleUntilMs = 0L
@@ -41,29 +44,32 @@ class Player {
     }
 
     fun jump(nowMs: Long) {
-        if (!isAirborne(nowMs)) jumpStartMs = nowMs
+        if (!riding && !isAirborne(nowMs)) jumpStartMs = nowMs
     }
 
-    fun mount(kind: ItemKind, nowMs: Long) {
-        // 还骑在上一辆上：只换车型并刷新 10 秒，撞击次数接着算，不叠满也不清零。
-        // 已经下车（时间走完，或撞满 3 次）后再捡：这是一辆新车，撞击从 0 重新计。
-        // 清零必须写在 riding = true 之前，否则分不清是续骑还是新车。
+    fun mount(nowMs: Long, defaultDirection: Int) {
         if (!riding) vehicleHits = 0
         riding = true
-        vehicleKind = kind
+        supplyVersion++
+        jumpStartMs = Long.MIN_VALUE
+        if (lastFireDirection == null) lastFireDirection = defaultDirection
+        ammoRemaining = GameConfig.TANK_AMMO
         vehicleExpiresAtMs = nowMs + GameConfig.VEHICLE_DURATION_MS
     }
 
     fun registerCrush() {
         vehicleHits++
-        if (vehicleHits >= GameConfig.VEHICLE_MAX_HITS) riding = false
+        if (vehicleHits >= GameConfig.VEHICLE_MAX_HITS) { riding = false; ammoRemaining = 0 }
     }
 
     fun tickVehicle(nowMs: Long) {
-        if (riding && nowMs >= vehicleExpiresAtMs) riding = false
+        if (riding && nowMs >= vehicleExpiresAtMs) { riding = false; ammoRemaining = 0 }
     }
 
     fun resetState() {
+        supplyVersion = 0
+        ammoRemaining = 0
+        lastFireDirection = null
         jumpStartMs = Long.MIN_VALUE
     }
 }

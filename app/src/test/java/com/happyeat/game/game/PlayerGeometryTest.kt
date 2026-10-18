@@ -9,18 +9,22 @@ class PlayerGeometryTest {
         for (spriteSize in listOf(null, 109f)) {
             val p = Player().apply { x = 250f; sizePx = 110.5f; spriteSizePx = spriteSize }
             verify(p, 0L, 0f)
-            for (kind in listOf(ItemKind.CAR, ItemKind.TANK)) {
-                p.mount(kind, 0L)
+            for (direction in listOf(-1, 1)) {
+                p.mount(0L, direction)
                 verify(p, 0L, 0f)
                 p.jump(0L)
-                verify(p, GameConfig.JUMP_AIRTIME_MS / 2, GameConfig.JUMP_HEIGHT * 2000f)
+                verify(p, GameConfig.JUMP_AIRTIME_MS / 2, 0f)
+                assertFalse(p.isAirborne(0L))
                 p.tickVehicle(GameConfig.VEHICLE_DURATION_MS)
                 verify(p, maxOf(GameConfig.VEHICLE_DURATION_MS, GameConfig.JUMP_AIRTIME_MS), 0f)
                 p.resetState()
-                p.mount(kind, 0L)
+                p.mount(0L, direction)
                 repeat(GameConfig.VEHICLE_MAX_HITS) { p.registerCrush() }
                 assertFalse(p.riding)
                 verify(p, 0L, 0f)
+                p.jump(0L)
+                verify(p, GameConfig.JUMP_AIRTIME_MS / 2, GameConfig.JUMP_HEIGHT * 2000f)
+                p.resetState()
             }
         }
     }

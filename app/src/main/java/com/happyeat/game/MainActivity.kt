@@ -86,7 +86,7 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
             addView(gameView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
             addView(buildHud(), FrameLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP))
         }
-        controlsBar = com.happyeat.game.ui.ControlsBar(this, gameView::movePlayerBy, gameView::jumpPlayer)
+        controlsBar = com.happyeat.game.ui.ControlsBar(this, gameView::movePlayerBy, gameView::performPlayerAction)
         controlsBar.setJumpOnLeft(Prefs.jumpOnLeft(this))
         val gameLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -233,7 +233,8 @@ class MainActivity : AppCompatActivity(), GameView.HudListener {
             if (lives >= GameConfig.MAX_LIVES) "" else getString(R.string.next_life_fmt, pointsToNextLife)
     }
 
-    override fun onVehicleChanged(riding: Boolean, hitsUsed: Int, secondsLeft: Int) {
+    override fun onVehicleChanged(riding: Boolean, hitsUsed: Int, secondsLeft: Int, ammoRemaining: Int, supplyVersion: Int) {
+        controlsBar.setActionState(riding, ammoRemaining, supplyVersion)
         vehicleText.text =
             if (riding) getString(R.string.vehicle_fmt, secondsLeft, hitsUsed, GameConfig.VEHICLE_MAX_HITS) else ""
     }

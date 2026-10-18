@@ -14,8 +14,7 @@ class GameWorldTest {
     @Test
     fun vehicleCountdownTicksDownAndClearsWhenTimeRunsOut() {
         val (world, probe) = newWorld()
-        dropOnPlayer(world, ItemKind.CAR)
-        world.update(16L)
+        deliver(world)
 
         val mounted = probe.vehicle.last()
         assertTrue(mounted.riding)
@@ -39,16 +38,14 @@ class GameWorldTest {
     @Test
     fun freshVehicleAfterThreeCrushesSurvivesTheNextHit() {
         val (world, _) = newWorld()
-        dropOnPlayer(world, ItemKind.CAR)
-        world.update(16L)
+        deliver(world)
         repeat(GameConfig.VEHICLE_MAX_HITS) {
             dropOnPlayer(world, ItemKind.ROCK)
             world.update(16L)
         }
         assertFalse(world.player.riding)
 
-        dropOnPlayer(world, ItemKind.TANK)
-        world.update(16L)
+        deliver(world)
         assertTrue(world.player.riding)
         assertEquals(0, world.player.vehicleHits)
 
@@ -104,6 +101,13 @@ class GameWorldTest {
         assertEquals(scoreBefore + GameConfig.SCORE_BEAN, probe.gameOverScore)
     }
 
+    private fun deliver(world: GameWorld) {
+        val delivery = TankDelivery(1, world.viewW)
+        world.tankDelivery = delivery
+        world.player.x = delivery.targetX
+        while (!world.player.riding) world.update(10L)
+    }
+
     private class Probe : GameWorld.Listener {
         var lives = GameConfig.START_LIVES
         var gameOverScore: Int? = null
@@ -113,7 +117,7 @@ class GameWorldTest {
             this.lives = lives
         }
 
-        override fun onVehicleChanged(riding: Boolean, hitsUsed: Int, secondsLeft: Int) {
+        override fun onVehicleChanged(riding: Boolean, hitsUsed: Int, secondsLeft: Int, ammoRemaining: Int, supplyVersion: Int) {
             vehicle.add(VehicleHud(riding, hitsUsed, secondsLeft))
         }
 

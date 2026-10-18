@@ -23,7 +23,7 @@ The Play Store page will appear — install like any app.
 Please **keep the app installed for 14 days** and open it now and then. Google counts this to let my game publish — dropping it early hurts the countdown.
 
 **4. Play & report (fun part)**
-Slide in the bottom move area to catch food and press JUMP to dodge beasts. Use two fingers together; swap the controls in Settings. Grab a car for temporary protection.
+Slide in the bottom move area to catch food and press JUMP to dodge beasts. Use two fingers together; swap the controls in Settings. Board an NPC-delivered tank for temporary protection. While driving, JUMP becomes FIRE with 3 shots; the tank lasts 15 seconds or 3 impacts.
 Send me a screenshot of your best score from the in-game leaderboard — and any feedback is gold.
 
 Thanks a million! 🙏

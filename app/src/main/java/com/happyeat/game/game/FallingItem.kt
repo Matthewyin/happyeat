@@ -2,7 +2,7 @@ package com.happyeat.game.game
 
 import com.happyeat.game.config.GameConfig
 
-enum class ItemKind { BEAN, MEAT, PIE, ROCK, BOMB, KNIFE, CAR, TANK }
+enum class ItemKind { BEAN, MEAT, PIE, ROCK, BOMB, KNIFE }
 
 class FallingItem(
     val kind: ItemKind,

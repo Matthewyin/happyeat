@@ -23,7 +23,8 @@ for Google Play's closed testing requirement (14 days).
 • Slide in the bottom move area to catch food; swap controls in Settings
 • Dodge rocks, bombs and knives (they cost a life!)
 • Tigers/lions/wolves charge along the ground — press the dedicated JUMP button to dodge them
-• Catch a car or tank for protection lasting 10 seconds or 3 impacts, whichever comes first
+• Board an NPC-delivered tank within 3 seconds; ride for 15 seconds or 3 impacts
+• While driving, Jump becomes Fire: 3 horizontal shots, no jumping
 • Day → sunset → night backgrounds, local leaderboard, instrumental game BGM
 
 **What I need from you:**
