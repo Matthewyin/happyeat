@@ -66,7 +66,7 @@ wx.onTouchStart(function (e) {
   if (!audioArmed) { audioArmed = true; applyAudio(); }
   const t = e.touches[0];
   if (!t) return;
-  const x = t.clientX, y = t.clientY;
+  const x = toViewX(t.clientX), y = t.clientY;
   if (page === "GAME") {
     if (hit(buttons.jumpBtn, x, y)) {
       world.performPlayerAction();
@@ -117,7 +117,7 @@ wx.onTouchMove(function (e) {
   for (const t of e.changedTouches) {
     if (t.identifier === moveTouchId) {
       world.dragPlayerBy(t.clientX - moveLastX);
-      moveLastX = t.clientX;
+      moveLastX = toViewX(t.clientX);
     }
   }
 });
@@ -192,9 +192,12 @@ let hud = { score: 0, lives: C.START_LIVES, pts: C.POINTS_PER_EXTRA_LIFE };
 let veh = { riding: false, hits: 0, seconds: 0 };
 
 /* ---------- 绘制 ---------- */
+var viewW = 0, viewOffX = 0;
 const INK = "#0B3D2E", CREAM = "#FFF6E3", AMBER = "#F59E0B", GOLD = "#FCD34D";
 
 function draw() {
+  ctx.save();
+  ctx.beginPath(); ctx.rect(viewOffX, 0, W, H); ctx.clip();
   if (page === "LOADING") {
     ctx.fillStyle = "#7AB6F0"; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = "#fff"; ctx.font = "bold 28px sans-serif"; ctx.textAlign = "center";
@@ -500,6 +503,12 @@ function circleBack(x: number, y: number) {
 let lastTs = 0;
 let drawErrShown = false;
 let loopAnnounced = false;
+var viewOffY = 0;
+function applyViewTransform() {
+  var s = dpr;
+  ctx.setTransform(s, 0, 0, s, viewOffX * s, 0);
+}
+function toViewX(clientX: number) { return clientX - viewOffX; }
 function loop(ts: number) {
   if (!loopAnnounced) { loopAnnounced = true; console.error("[HappyEat] loop frame 1 running, page=" + page); }
   const dt = lastTs ? Math.min(50, ts - lastTs) : 16;
@@ -536,10 +545,12 @@ function startGameBoot() {
   canvas = wx.createCanvas();
   const info = wx.getSystemInfoSync();
   dpr = Math.min(info.pixelRatio || 2, 2);
-  W = info.screenWidth; H = info.screenHeight;
-  canvas.width = W * dpr; canvas.height = H * dpr;
+  H = info.windowHeight;
+  W = Math.round(H / 2);
+  viewOffX = Math.round((info.windowWidth - W) / 2);
+  canvas.width = info.windowWidth * dpr; canvas.height = H * dpr;
   ctx = canvas.getContext("2d");
-  ctx.scale(dpr, dpr);
+  applyViewTransform();
   loadSettings();
   world.bgIndex = 0;
   world.groundFraction = (C.BG_GROUND_FRACTIONS as Record<string, number>)[backgroundFileFor(0, bgMode)] ?? 0.8;

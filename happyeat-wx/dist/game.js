@@ -803,7 +803,7 @@
     }
     const t = e.touches[0];
     if (!t) return;
-    const x = t.clientX, y = t.clientY;
+    const x = toViewX(t.clientX), y = t.clientY;
     if (page === "GAME") {
       if (hit2(buttons.jumpBtn, x, y)) {
         world.performPlayerAction();
@@ -911,7 +911,7 @@
     for (const t of e.changedTouches) {
       if (t.identifier === moveTouchId) {
         world.dragPlayerBy(t.clientX - moveLastX);
-        moveLastX = t.clientX;
+        moveLastX = toViewX(t.clientX);
       }
     }
   });
@@ -1003,11 +1003,16 @@
   };
   var hud = { score: 0, lives: C.START_LIVES, pts: C.POINTS_PER_EXTRA_LIFE };
   var veh = { riding: false, hits: 0, seconds: 0 };
+  var viewOffX = 0;
   var INK = "#0B3D2E";
   var CREAM = "#FFF6E3";
   var AMBER = "#F59E0B";
   var GOLD = "#FCD34D";
   function draw() {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(viewOffX, 0, W, H);
+    ctx.clip();
     if (page === "LOADING") {
       ctx.fillStyle = "#7AB6F0";
       ctx.fillRect(0, 0, W, H);
@@ -1364,6 +1369,13 @@
   var lastTs = 0;
   var drawErrShown = false;
   var loopAnnounced = false;
+  function applyViewTransform() {
+    var s = dpr;
+    ctx.setTransform(s, 0, 0, s, viewOffX * s, 0);
+  }
+  function toViewX(clientX) {
+    return clientX - viewOffX;
+  }
   function loop(ts) {
     var _a;
     if (!loopAnnounced) {
@@ -1415,12 +1427,13 @@
     canvas = wx.createCanvas();
     const info = wx.getSystemInfoSync();
     dpr = Math.min(info.pixelRatio || 2, 2);
-    W = info.screenWidth;
-    H = info.screenHeight;
-    canvas.width = W * dpr;
+    H = info.windowHeight;
+    W = Math.round(H / 2);
+    viewOffX = Math.round((info.windowWidth - W) / 2);
+    canvas.width = info.windowWidth * dpr;
     canvas.height = H * dpr;
     ctx = canvas.getContext("2d");
-    ctx.scale(dpr, dpr);
+    applyViewTransform();
     loadSettings();
     world.bgIndex = 0;
     world.groundFraction = (_a = C.BG_GROUND_FRACTIONS[backgroundFileFor(0, bgMode)]) != null ? _a : 0.8;

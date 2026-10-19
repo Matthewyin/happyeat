@@ -27,7 +27,7 @@ window.wx = {
     return firstCanvas;
   },
   getSystemInfoSync: function () {
-    return { screenWidth: window.innerWidth, screenHeight: window.innerHeight, pixelRatio: 1 };
+    return { screenWidth: window.innerWidth, screenHeight: window.innerHeight, windowWidth: window.innerWidth, windowHeight: window.innerHeight, pixelRatio: 1 };
   },
   createImage: function () { return new Image(); },
   onTouchStart: function (f) { window.__ts = f; },
