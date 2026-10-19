@@ -1089,8 +1089,8 @@
     setBtn("jumpBtn", jumpR);
     var p2 = world.player;
     var jumpLabel = p2.riding ? "\u5C04\u51FB \xD7" + p2.ammoRemaining : "\u8DF3\u8DC3";
-    drawCandy(moveR, p2.riding ? "#78CBA6" : "#FFFDF4", "#0B3D2E", INK, "\u21E4 \u6ED1\u52A8\u79FB\u52A8");
-    drawCandy(jumpR, p2.riding ? "#F3BC36" : "#F3BC36", "#0B3D2E", INK, jumpLabel);
+    drawCandyIcon(moveR, images.ui_move, p2.riding ? "#78CBA6" : "#FFFDF4", "#0B3D2E", INK, "\u6ED1\u52A8\u79FB\u52A8");
+    drawCandyIcon(jumpR, images.ui_tap, "#F3BC36", "#0B3D2E", INK, jumpLabel);
     if (p2.riding) {
       ctx.fillStyle = INK;
       ctx.font = "bold 16px sans-serif";
@@ -1108,10 +1108,12 @@
     roundRect(ctx, 12, 12, 250, 92, 18);
     ctx.fill();
     ctx.fillStyle = "#fff";
-    ctx.font = "bold 22px sans-serif";
+    ctx.font = "bold 22px Baloo 2, sans-serif";
     ctx.fillText("\u5206\u6570 " + hud.score, 28, 44);
-    ctx.font = "16px sans-serif";
-    ctx.fillText("\u751F\u547D " + hud.lives, 28, 72);
+    var heart = images.ui_heart;
+    if (heart) ctx.drawImage(heart, 28, 56, 18, 18);
+    ctx.font = "16px Baloo 2, sans-serif";
+    ctx.fillText(String(hud.lives), heart ? 52 : 28, 72);
     ctx.fillText("\u8FD8\u5DEE " + hud.pts + " \u5206\u9001\u547D", 28, 96);
     if (veh.riding) {
       ctx.fillStyle = GOLD;
@@ -1159,6 +1161,24 @@
     drawCandy(buttons.help, CREAM, "#D9C9A3", INK, "\u2753 \u5E2E\u52A9");
     setBtn("exit", { x: bx, y: H * 0.74 + 284, w: bw, h: 56 });
     drawCandy(buttons.exit, 1089422404, "#EF4444", "#FCA5A5", "\u21AA \u9000\u51FA\u6E38\u620F");
+    ctx.textAlign = "left";
+  }
+  function drawCandyIcon(r, icon, base, stroke, color, label) {
+    ctx.fillStyle = "#D9C9A3";
+    roundRect(ctx, r.x, r.y + 5, r.w, r.h, r.h / 2);
+    ctx.fill();
+    ctx.fillStyle = base;
+    roundRect(ctx, r.x, r.y, r.w, r.h - 5, (r.h - 5) / 2);
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2;
+    roundRect(ctx, r.x, r.y, r.w, r.h - 5, (r.h - 5) / 2);
+    ctx.stroke();
+    if (icon) ctx.drawImage(icon, r.x + 18, r.y + (r.h - 5) / 2 - 14, 28, 28);
+    ctx.fillStyle = color;
+    ctx.font = "bold 22px Baloo 2, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(label, r.x + r.w / 2 + 14, r.y + r.h / 2 - 5 + 8);
     ctx.textAlign = "left";
   }
   function drawCandy(r, base, stroke, color, label) {

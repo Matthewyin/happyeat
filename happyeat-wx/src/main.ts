@@ -263,8 +263,8 @@ function draw() {
   setBtn("moveZone", moveR); setBtn("jumpBtn", jumpR);
   var p2 = world.player;
   var jumpLabel = p2.riding ? ("射击 ×" + p2.ammoRemaining) : "跳跃";
-  drawCandy(moveR, p2.riding ? "#78CBA6" : "#FFFDF4", "#0B3D2E", INK, "⇤ 滑动移动");
-  drawCandy(jumpR, p2.riding ? "#F3BC36" : "#F3BC36", "#0B3D2E", INK, jumpLabel);
+  drawCandyIcon(moveR, images.ui_move, p2.riding ? "#78CBA6" : "#FFFDF4", "#0B3D2E", INK, "滑动移动");
+  drawCandyIcon(jumpR, images.ui_tap, "#F3BC36", "#0B3D2E", INK, jumpLabel);
   if (p2.riding) {
     ctx.fillStyle = INK; ctx.font = "bold 16px sans-serif"; ctx.textAlign = "center";
     ctx.fillText("坦克待命", W / 2, by - 10); ctx.textAlign = "left";
@@ -279,9 +279,12 @@ function draw() {
 function drawHud() {
   ctx.fillStyle = "rgba(16,23,36,0.35)";
   roundRect(ctx, 12, 12, 250, 92, 18); ctx.fill();
-  ctx.fillStyle = "#fff"; ctx.font = "bold 22px sans-serif";
+  ctx.fillStyle = "#fff"; ctx.font = "bold 22px Baloo 2, sans-serif";
   ctx.fillText("分数 " + hud.score, 28, 44);
-  ctx.font = "16px sans-serif"; ctx.fillText("生命 " + hud.lives, 28, 72);
+  var heart = images.ui_heart;
+  if (heart) ctx.drawImage(heart, 28, 56, 18, 18);
+  ctx.font = "16px Baloo 2, sans-serif";
+  ctx.fillText(String(hud.lives), heart ? 52 : 28, 72);
   ctx.fillText("还差 " + hud.pts + " 分送命", 28, 96);
   if (veh.riding) {
     ctx.fillStyle = GOLD;
@@ -325,6 +328,21 @@ function drawMenu(_now: number) {
   drawCandy(buttons.help, CREAM, "#D9C9A3", INK, "❓ 帮助");
   setBtn("exit", { x: bx, y: H * 0.74 + 284, w: bw, h: 56 });
   drawCandy(buttons.exit, 0x40EF4444, "#EF4444", "#FCA5A5", "↪ 退出游戏");
+  ctx.textAlign = "left";
+}
+
+function drawCandyIcon(r: Rect, icon: any, base: string, stroke: string, color: string, label: string) {
+  ctx.fillStyle = "#D9C9A3";
+  roundRect(ctx, r.x, r.y + 5, r.w, r.h, r.h / 2); ctx.fill();
+  ctx.fillStyle = base;
+  roundRect(ctx, r.x, r.y, r.w, r.h - 5, (r.h - 5) / 2); ctx.fill();
+  ctx.strokeStyle = stroke; ctx.lineWidth = 2;
+  roundRect(ctx, r.x, r.y, r.w, r.h - 5, (r.h - 5) / 2); ctx.stroke();
+  if (icon) ctx.drawImage(icon, r.x + 18, r.y + (r.h - 5) / 2 - 14, 28, 28);
+  ctx.fillStyle = color;
+  ctx.font = "bold 22px Baloo 2, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(label, r.x + r.w / 2 + 14, r.y + r.h / 2 - 5 + 8);
   ctx.textAlign = "left";
 }
 
