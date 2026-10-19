@@ -15,3 +15,11 @@ out/cmp/
 .video_agent/
 *.jks
 keystore.properties
+out/controls/
+out/polish/
+out/review-fixes/
+out/score-stages/
+out/tank-delivery/
+out/username-edit/
+out/visual-refresh/
+.archify/

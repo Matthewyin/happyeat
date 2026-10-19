@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>booting</title>
+<style>html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><script>
+window.__errors = [];
+window.__logs = [];
+(function () {
+  var orig = console.error.bind(console);
+  console.error = function () {
+    var args = Array.prototype.slice.call(arguments).map(function (a) {
+      try { return typeof a === "string" ? a : JSON.stringify(a).slice(0, 80); } catch (e) { return String(a); }
+    });
+    window.__logs.push("E: " + args.join(" "));
+    document.title = window.__logs[window.__logs.length - 1];
+    orig.apply(null, arguments);
+  };
+})();
+var storage = {};
+var firstCanvas = null;
+window.wx = {
+  createCanvas: function () {
+    if (firstCanvas) return firstCanvas;
+    firstCanvas = document.createElement("canvas");
+    firstCanvas.width = window.innerWidth; firstCanvas.height = window.innerHeight;
+    firstCanvas.id = "screen";
+    document.body.appendChild(firstCanvas);
+    return firstCanvas;
+  },
+  getSystemInfoSync: function () {
+    return { screenWidth: window.innerWidth, screenHeight: window.innerHeight, pixelRatio: 1 };
+  },
+  createImage: function () { return new Image(); },
+  onTouchStart: function (f) { window.__ts = f; },
+  onTouchMove: function (f) { window.__tm = f; },
+  onTouchEnd: function (f) { window.__te = f; },
+  getStorageSync: function (k) { return storage[k] !== undefined ? storage[k] : ""; },
+  setStorageSync: function (k, v) { storage[k] = v; },
+  getOpenDataContext: function () {
+    return { postMessage: function () {}, canvas: (function () { var c = document.createElement("canvas"); c.width = 600; c.height = 800; return c; })() };
+  },
+  createInnerAudioContext: function () {
+    return { play: function () {}, stop: function () {}, src: "", loop: false, volume: 1,
+      onPlay: function () {}, onStop: function () {}, onError: function () {} };
+  },
+  showShareMenu: function () {}, onShareAppMessage: function () {},
+  exitMiniProgram: function () {},
+  showKeyboard: function () {}, onKeyboardInput: function () {}, onKeyboardComplete: function () {},
+  offKeyboardInput: function () {}, offKeyboardComplete: function () {},
+  setUserCloudStorage: function () {}, getFriendCloudStorage: function () {},
+};
+</script>
+<script src="./game.js"></script>
+</body></html>
